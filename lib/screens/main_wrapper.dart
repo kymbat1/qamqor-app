@@ -1,19 +1,17 @@
-// lib/screens/main_wrapper.dart (ФИНАЛЬНАЯ ВЕРСИЯ ПОД JAVA-БЭКЕНД)
-
 import 'package:flutter/material.dart';
 
-// 🎯 ИМПОРТЫ ЭКРАНОВ КОНТЕНТА
+import '../services/auth_service.dart';
+import '../theme/app_design.dart';
+import 'auth/login_screen.dart';
 import 'calendar/cycle_calendar_screen.dart';
+import 'doctors/doctor_dashboard_screen.dart';
 import 'doctors/doctor_list_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
 
-// Импорты аутентификации
-import '../services/auth_service.dart';
-import 'auth/login_screen.dart';
-
 class MainWrapper extends StatefulWidget {
   final AuthService authService;
+
   const MainWrapper({super.key, required this.authService});
 
   @override
@@ -22,34 +20,40 @@ class MainWrapper extends StatefulWidget {
 
 class _MainWrapperState extends State<MainWrapper> {
   int _selectedIndex = 0;
-  final Color primaryColor = const Color(0xFFFF89AC);
 
   late final List<Widget> _screens;
   bool _isLoading = true;
   bool _isLoggedIn = false;
+  bool _isDoctor = false;
 
   @override
   void initState() {
     super.initState();
-
     _screens = [
-      HomeScreen(),
-      CycleCalendarContent(),
-      DoctorListScreen(),
+      HomeScreen(
+        authService: widget.authService,
+        showBottomNavigation: false,
+        onOpenCalendar: () => _onItemTapped(1),
+        onOpenDoctors: () => _onItemTapped(2),
+        onOpenProfile: () => _onItemTapped(3),
+      ),
+      const CycleCalendarContent(),
+      const DoctorListScreen(),
       ProfileScreen(authService: widget.authService),
     ];
-
     _checkLoginStatus();
   }
 
   Future<void> _checkLoginStatus() async {
     try {
       final user = await widget.authService.currentUser();
+      final role = await widget.authService.currentUserRole();
       setState(() {
-        _isLoggedIn = user.isNotEmpty;
+        _isLoggedIn = user?.isNotEmpty ?? false;
+        _isDoctor = role == 'doctor';
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _isLoggedIn = false;
         _isLoading = false;
@@ -58,23 +62,16 @@ class _MainWrapperState extends State<MainWrapper> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  BottomNavigationBarItem _buildNavItem(IconData icon, String label) {
-    return BottomNavigationBarItem(
-      icon: Icon(icon, size: 28),
-      label: label,
-    );
+    setState(() => _selectedIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: GradientPage(
+          child: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
@@ -82,9 +79,9 @@ class _MainWrapperState extends State<MainWrapper> {
       return LoginScreen(authService: widget.authService);
     }
 
-    final double bottomPadding = MediaQuery.of(context).padding.bottom;
-    const double fixedBarHeight = 70.0;
-    final double totalBarHeight = fixedBarHeight + bottomPadding;
+    if (_isDoctor) {
+      return DoctorDashboardScreen(authService: widget.authService);
+    }
 
     return Scaffold(
       extendBody: true,
@@ -92,56 +89,63 @@ class _MainWrapperState extends State<MainWrapper> {
         index: _selectedIndex,
         children: _screens,
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.transparent,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        height: totalBarHeight,
-        child: Container(
-          height: totalBarHeight,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, -10),
-              ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+        child: FrostedPanel(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          radius: 28,
+          child: Row(
+            children: [
+              _navItem(Icons.home_rounded, 'Главная', 0),
+              _navItem(Icons.calendar_month_rounded, 'Цикл', 1),
+              _navItem(Icons.event_available_rounded, 'Запись', 2),
+              _navItem(Icons.person_rounded, 'Профиль', 3),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _onItemTapped(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          height: 50,
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.blush : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                height: fixedBarHeight,
-                child: BottomNavigationBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  type: BottomNavigationBarType.fixed,
-                  showSelectedLabels: true,
-                  showUnselectedLabels: true,
-                  selectedItemColor: primaryColor,
-                  unselectedItemColor: Colors.grey.shade600,
-                  selectedLabelStyle: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      color: primaryColor),
-                  unselectedLabelStyle: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 11,
-                      color: Colors.grey.shade600),
-                  currentIndex: _selectedIndex,
-                  onTap: _onItemTapped,
-                  items: <BottomNavigationBarItem>[
-                    _buildNavItem(Icons.home_filled, "Home"),
-                    _buildNavItem(Icons.calendar_month_outlined, "Calendar"),
-                    _buildNavItem(Icons.medical_services_outlined, "Doctor"),
-                    _buildNavItem(Icons.person_outline, "Profile"),
-                  ],
-                ),
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : AppColors.muted,
+                size: 22,
               ),
-              SizedBox(height: bottomPadding),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: isSelected
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),

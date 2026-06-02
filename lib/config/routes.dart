@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:womens_health/screens/auth/login_screen.dart';
-import 'package:womens_health/screens/auth/register_screen.dart';
+
+import '../screens/auth/login_screen.dart';
+import '../screens/auth/register_screen.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/main_wrapper.dart';
+import '../services/auth_service.dart';
 
-
-/// 📍 Все маршруты приложения
 final Map<String, WidgetBuilder> appRoutes = {
-  '/': (context) => const LoginScreen(),
-  '/login': (context) => const LoginScreen(),
-  '/register': (context) => const RegisterScreen(),
-  '/home': (context) => const HomeScreen(),
+  '/': (context) => MainWrapper(authService: AuthService()),
+  '/login': (context) => LoginScreen(authService: AuthService()),
+  '/register': (context) => RegisterScreen(authService: AuthService()),
+  '/home': (context) => HomeScreen(authService: AuthService()),
 };

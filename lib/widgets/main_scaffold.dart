@@ -1,124 +1,105 @@
-// lib/widgets/main_scaffold.dart
 import 'package:flutter/material.dart';
-import '../screens/home/home_screen.dart';
+
 import '../screens/calendar/cycle_calendar_screen.dart';
-import '../screens/home/health_screen.dart';
-import '../screens/home/profile_screen.dart';
+import '../screens/doctors/doctor_list_screen.dart';
+import '../screens/home/home_screen.dart';
+import '../screens/profile/profile_screen.dart';
+import '../services/auth_service.dart';
+import '../theme/app_design.dart';
 
 class MainScaffold extends StatelessWidget {
   final Widget body;
   final int currentIndex;
+  final AuthService authService;
 
-  const MainScaffold({
+  MainScaffold({
     super.key,
     required this.body,
     this.currentIndex = 0,
-  });
+    AuthService? authService,
+  }) : authService = authService ?? AuthService();
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryPink = const Color(0xFFFF89AC);
-
-    Widget _buildNavItem(IconData icon, String label, bool isActive, VoidCallback? onTap) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: isActive
-                  ? BoxDecoration(
-                color: primaryPink.withOpacity(0.1),
-                shape: BoxShape.circle,
-              )
-                  : null,
-              child: Icon(icon, color: isActive ? primaryPink : const Color(0xFF4A4A6A), size: 24),
-            ),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    color: isActive ? primaryPink : const Color(0xFF4A4A6A),
-                    fontSize: 10,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500)),
-          ],
-        ),
-      );
-    }
-
     return Scaffold(
       body: body,
-      bottomNavigationBar: Container(
-        height: 80 + MediaQuery.of(context).padding.bottom,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 15,
-              offset: const Offset(0, -3),
-            ),
-          ],
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).padding.bottom,
-            top: 12,
-          ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+        child: FrostedPanel(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          radius: 28,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_filled, 'Home', currentIndex == 0, () {
-                if (currentIndex != 0) Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                );
+              _buildNavItem(context, Icons.home_rounded, 'Главная', 0, () {
+                _replace(context, HomeScreen(authService: authService));
               }),
-              _buildNavItem(Icons.calendar_month_outlined, 'Calendar', currentIndex == 1, () {
-                if (currentIndex != 1) Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CalendarScreen()),
-                );
+              _buildNavItem(context, Icons.calendar_month_rounded, 'Цикл', 1,
+                  () {
+                _replace(context, const CycleCalendarScreen());
               }),
-              // Центральная кнопка
-              Stack(
-                alignment: Alignment.topCenter,
-                children: [
-                  Container(margin: const EdgeInsets.only(top: 8)),
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: primaryPink,
-                      child: const Icon(Icons.add, color: Colors.white, size: 28),
-                    ),
-                  ),
-                ],
-              ),
-              _buildNavItem(Icons.medical_services_outlined, 'Health', currentIndex == 2, () {
-                if (currentIndex != 2) Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HealthScreen()),
-                );
+              _buildNavItem(context, Icons.event_available_rounded, 'Запись', 2,
+                  () {
+                _replace(context, const DoctorListScreen());
               }),
-              _buildNavItem(Icons.person_outline, 'Profile', currentIndex == 3, () {
-                if (currentIndex != 3) Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                );
+              _buildNavItem(context, Icons.person_rounded, 'Профиль', 3, () {
+                _replace(context, ProfileScreen(authService: authService));
               }),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    String label,
+    int index,
+    VoidCallback onTap,
+  ) {
+    final isActive = index == currentIndex;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: isActive ? null : onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          height: 50,
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.blush : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: isActive ? Colors.white : AppColors.muted),
+              if (isActive) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _replace(BuildContext context, Widget screen) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
     );
   }
 }

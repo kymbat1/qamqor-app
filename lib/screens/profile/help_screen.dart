@@ -1,230 +1,267 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_design.dart';
+
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
-  final Color primaryPink = const Color(0xFFFF89AC);
-  final Color darkTextColor = const Color(0xFF4A4A6A);
-  final Color lightBackgroundColor = const Color(0xFFFDEEF2);
-
-  // Список часто задаваемых вопросов (FAQ)
-  final List<Map<String, String>> faqItems = const [
+  static const List<Map<String, String>> _faqItems = [
     {
       'question': 'Как правильно начать цикл?',
-      'answer': 'Цикл начинается с первого дня менструации. Вам нужно отметить этот день в календаре, чтобы приложение начало расчеты.'
+      'answer':
+          'Открой вкладку “Цикл”, выбери первый день месячных и нажми “Отметить”. После этого приложение начнет считать день цикла и прогнозы.',
     },
     {
-      'question': 'Насколько точны прогнозы?',
-      'answer': 'Прогнозы овуляции и периода основаны на внесенных вами данных. Чем регулярнее вы вносите информацию (длительность цикла, настроение, симптомы), тем точнее становятся расчеты.'
+      'question': 'Почему прогнозы могут отличаться?',
+      'answer':
+          'Прогноз строится по твоим отметкам. Чем больше циклов отмечено, тем понятнее становятся средняя длина, симптомы и повторяющиеся дни.',
     },
     {
-      'question': 'Как сбросить данные цикла?',
-      'answer': 'Перейдите в "Профиль" -> "Период и Овуляция" и нажмите "Сброс данных". Все предыдущие записи будут удалены.'
+      'question': 'Как изменить данные профиля?',
+      'answer':
+          'Открой “Редактировать профиль”, измени имя, город, дату рождения или заметки и нажми “Сохранить”.',
     },
     {
-      'question': 'Могу ли я добавить свои симптомы?',
-      'answer': 'Да, вы можете добавлять пользовательские симптомы и заметки через основное окно календаря, выбирая конкретный день.'
+      'question': 'Как связаться с врачом?',
+      'answer':
+          'После записи к врачу чат появится в разделе “Мои записи”. Оттуда можно открыть переписку.',
     },
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: lightBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'Справочный центр и FAQ',
-          style: TextStyle(
-            color: darkTextColor,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: IconThemeData(color: primaryPink),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Секция FAQ ---
-            Text(
-              'Часто задаваемые вопросы',
-              style: TextStyle(
-                color: darkTextColor,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: faqItems.map((item) {
-                  return Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent, // Убираем разделители
-                    ),
-                    child: ExpansionTile(
-                      // Иконка перед заголовком
-                      leading: Icon(
-                        Icons.info_outline,
-                        color: primaryPink,
-                      ),
-                      // Заголовок вопроса
-                      title: Text(
-                        item['question']!,
-                        style: TextStyle(
-                          color: darkTextColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
-                      ),
-                      // Стиль для стрелки
-                      iconColor: primaryPink,
-                      collapsedIconColor: Colors.grey,
-                      // Тело ответа
-                      children: <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 15, top: 5),
-                          child: Text(
-                            item['answer']!,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 15,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // --- Секция Поддержки ---
-            Text(
-              'Связаться с нами',
-              style: TextStyle(
-                color: darkTextColor,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            _buildContactCard(
-              icon: Icons.email_outlined,
-              title: 'Написать на Email',
-              subtitle: 'Отправьте нам подробное сообщение',
-              action: () => _showSnackbar(context, 'Открытие почтового клиента...'),
-            ),
-            const SizedBox(height: 15),
-            _buildContactCard(
-              icon: Icons.support_agent_outlined,
-              title: 'Чат поддержки',
-              subtitle: 'Ответ в течение 24 часов',
-              action: () => _showSnackbar(context, 'Открытие чата поддержки...'),
-            ),
-
-            const SizedBox(height: 40),
-
-            // Информация о приложении
-            Center(
-              child: Text(
-                'Health Cycle v1.0.0',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Вспомогательный виджет для карточки контактов
-  Widget _buildContactCard({required IconData icon, required String title, required String subtitle, required VoidCallback action}) {
-    return InkWell(
-      onTap: action,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: primaryPink.withOpacity(0.3), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: primaryPink.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: primaryPink.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: primaryPink, size: 30),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
+      extendBody: true,
+      body: GradientPage(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Header(
+                  title: 'Помощь',
+                  subtitle: 'Ответы и поддержка',
+                  onBack: () => Navigator.pop(context),
+                ),
+                const SizedBox(height: 18),
+                FadeSlideIn(child: _supportHero(context)),
+                const SizedBox(height: 16),
+                FadeSlideIn(delayMs: 80, child: _faqCard(context)),
+                const SizedBox(height: 16),
+                FadeSlideIn(delayMs: 130, child: _contacts(context)),
+                const SizedBox(height: 22),
+                const Center(
+                  child: Text(
+                    'Qamqor Care v1.0.0',
                     style: TextStyle(
-                      color: darkTextColor,
-                      fontSize: 16,
+                      color: AppColors.muted,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Icon(Icons.arrow_forward_ios, size: 20, color: Colors.grey.shade400),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  // Вспомогательная функция для всплывающего уведомления
-  void _showSnackbar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(milliseconds: 700),
+  Widget _supportHero(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: AppColors.blush,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: AppShadows.floating,
       ),
+      child: Row(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(Icons.support_agent_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Text(
+              'Если что-то не получается, начни с быстрых ответов ниже.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _faqCard(BuildContext context) {
+    return SoftCard(
+      radius: 30,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: _faqItems.map((item) {
+          return Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              leading: const Icon(Icons.help_outline_rounded, color: AppColors.blush),
+              iconColor: AppColors.blush,
+              collapsedIconColor: AppColors.muted,
+              title: Text(
+                item['question']!,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Text(
+                    item['answer']!,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _contacts(BuildContext context) {
+    return Column(
+      children: [
+        _contactCard(
+          icon: Icons.email_outlined,
+          title: 'Email поддержка',
+          subtitle: 'Ответим на вопрос по приложению',
+          onTap: () => _showMessage(context, 'support@qamqor.app'),
+        ),
+        const SizedBox(height: 12),
+        _contactCard(
+          icon: Icons.chat_bubble_outline_rounded,
+          title: 'Чат поддержки',
+          subtitle: 'Скоро будет доступен внутри приложения',
+          onTap: () => _showMessage(context, 'Чат поддержки в разработке'),
+        ),
+      ],
+    );
+  }
+
+  Widget _contactCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return SoftCard(
+      radius: 26,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.lavender,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: AppColors.blush),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+        ],
+      ),
+    );
+  }
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final VoidCallback onBack;
+
+  const _Header({
+    required this.title,
+    required this.subtitle,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton.filledTonal(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
