@@ -85,7 +85,7 @@ class Doctor {
       'address': address,
       'latitude': latitude,
       'longitude': longitude,
-      'avatarColor': avatarColor.value,
+      'avatarColor': avatarColor.toARGB32(),
     };
   }
 

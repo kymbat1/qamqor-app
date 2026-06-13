@@ -30,7 +30,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _codeSent = false;
   String _role = 'client';
   String _status = '';
-  String? _debugCode;
   DateTime? _expiresAt;
   DateTime? _resendAvailableAt;
   Timer? _timer;
@@ -88,7 +87,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _startTicker();
       setState(() {
         _codeSent = true;
-        _debugCode = result.debugCode;
         _expiresAt = result.expiresAt;
         _resendAvailableAt = result.resendAvailableAt;
         _status = 'Код отправлен на ${result.email}';
@@ -158,7 +156,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       _startTicker();
       setState(() {
-        _debugCode = result.debugCode;
         _expiresAt = result.expiresAt;
         _resendAvailableAt = result.resendAvailableAt;
         _status = 'Новый код отправлен';
@@ -233,7 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return 'Не удалось отправить письмо. Проверьте настройки SMTP.';
     }
     if (text.contains('backend-unavailable')) {
-      return 'Backend недоступен. Проверьте, что FastAPI запущен на 8000.';
+      return 'Backend недоступен. Проверьте, что FastAPI запущен и адрес API указан правильно.';
     }
     return 'Не удалось завершить регистрацию';
   }
@@ -407,23 +404,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          if (_debugCode != null && _debugCode!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.mint,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                'Локальный debug-код: $_debugCode',
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

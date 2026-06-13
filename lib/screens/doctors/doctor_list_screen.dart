@@ -339,7 +339,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     return SoftCard(
       radius: 22,
       padding: const EdgeInsets.all(12),
-      color: Colors.white.withOpacity(0.94),
+      color: Colors.white.withValues(alpha: 0.94),
       child: Column(
         children: [
           Row(
@@ -454,7 +454,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     return SoftCard(
       radius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      color: value ? AppColors.lavender : Colors.white.withOpacity(0.9),
+      color: value ? AppColors.lavender : Colors.white.withValues(alpha: 0.9),
       onTap: onTap,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -693,8 +693,8 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     final x = ((doctor.longitude - minLng) / lngRange) * (width - 52) + 8;
     final y = ((maxLat - doctor.latitude) / latRange) * (height - 52) + 8;
     return Offset(
-      (x.clamp(8, width - 46) as num).toDouble(),
-      (y.clamp(8, height - 46) as num).toDouble(),
+      x.clamp(8, width - 46).toDouble(),
+      y.clamp(8, height - 46).toDouble(),
     );
   }
 
@@ -872,7 +872,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -1083,9 +1083,9 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: doctor.avatarColor.withOpacity(0.14),
+        color: doctor.avatarColor.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: doctor.avatarColor.withOpacity(0.28)),
+        border: Border.all(color: doctor.avatarColor.withValues(alpha: 0.28)),
       ),
       child: Center(
         child: Text(
@@ -1104,7 +1104,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: AppColors.lavender.withOpacity(0.72),
+        color: AppColors.lavender.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -1219,7 +1219,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      activeColor: AppColors.blush,
+                      activeThumbColor: AppColors.blush,
                       value: onlyOnline,
                       onChanged: (value) =>
                           setModalState(() => onlyOnline = value),
@@ -1312,21 +1312,20 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     required ValueChanged<_SortMode> onChanged,
   }) {
     final selected = mode == value;
-    return RadioListTile<_SortMode>(
+    return ListTile(
       contentPadding: EdgeInsets.zero,
-      activeColor: AppColors.blush,
-      value: mode,
-      groupValue: value,
-      onChanged: (mode) {
-        if (mode != null) onChanged(mode);
-      },
-      secondary: Icon(icon, color: selected ? AppColors.blush : AppColors.muted),
+      onTap: () => onChanged(value),
+      leading: Icon(icon, color: selected ? AppColors.blush : AppColors.muted),
       title: Text(
         title,
         style: TextStyle(
           color: selected ? AppColors.plum : AppColors.ink,
           fontWeight: FontWeight.w800,
         ),
+      ),
+      trailing: Icon(
+        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: selected ? AppColors.blush : AppColors.muted,
       ),
     );
   }
@@ -1358,7 +1357,9 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
       );
       final city = _nearestKnownCity(position);
 
@@ -1437,12 +1438,12 @@ class _ClinicMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final roadPaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
     final smallRoadPaint = Paint()
-      ..color = Colors.white.withOpacity(0.72)
+      ..color = Colors.white.withValues(alpha: 0.72)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;

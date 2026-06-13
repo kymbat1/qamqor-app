@@ -67,14 +67,11 @@ class HttpOtpDeliveryService implements OtpDeliveryService {
 
 class OtpDeliveryServiceFactory {
   static OtpDeliveryService create() {
-    final mode = dotenv.env['OTP_DELIVERY_MODE'] ?? 'debug';
+    final mode = dotenv.env['OTP_DELIVERY_MODE'] ?? 'disabled';
     if (mode == 'http') {
       final baseUrl = dotenv.env['OTP_API_BASE_URL'];
       if (baseUrl == null || baseUrl.isEmpty) {
-        debugPrint(
-          'OTP_DELIVERY_MODE=http, but OTP_API_BASE_URL is empty. Falling back to debug OTP delivery.',
-        );
-        return DebugOtpDeliveryService();
+        throw Exception('otp-delivery-failed');
       }
 
       return HttpOtpDeliveryService(
@@ -83,6 +80,10 @@ class OtpDeliveryServiceFactory {
       );
     }
 
-    return DebugOtpDeliveryService();
+    if (mode == 'debug') {
+      return DebugOtpDeliveryService();
+    }
+
+    throw Exception('otp-delivery-failed');
   }
 }
