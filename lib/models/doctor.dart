@@ -49,17 +49,22 @@ class Doctor {
       university: json['university'] ?? '',
       hospital: json['hospital'] ?? '',
       rating: _readDouble(json['rating'], 0),
-      reviewCount: _readInt(json['reviewCount'], 0),
-      yearsOfExperience: _readInt(json['yearsOfExperience'], 0),
-      consultationFee: _readDouble(json['consultationFee'], 0),
+      reviewCount: _readInt(json['reviewCount'] ?? json['review_count'], 0),
+      yearsOfExperience:
+          _readInt(json['yearsOfExperience'] ?? json['years_of_experience'], 0),
+      consultationFee:
+          _readDouble(json['consultationFee'] ?? json['consultation_fee'], 0),
       description: json['description'] ?? '',
-      isOnline: json['isOnline'] ?? true,
+      isOnline: json['isOnline'] ?? json['is_online'] ?? true,
       gender: json['gender'] ?? 'female',
       city: json['city'] ?? 'Алматы',
       address: json['address'] ?? '',
       latitude: _readDouble(json['latitude'], 43.238949),
       longitude: _readDouble(json['longitude'], 76.889709),
-      avatarColor: _readColor(json['avatarColor'], const Color(0xFFFF1493)),
+      avatarColor: _readColor(
+        json['avatarColor'] ?? json['avatar_color'],
+        const Color(0xFFFF1493),
+      ),
     );
   }
 

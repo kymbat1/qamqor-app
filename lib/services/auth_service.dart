@@ -1,177 +1,153 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/auth_code.dart';
 import '../utils/auth_validators.dart';
+import 'api_client.dart';
 import 'otp_delivery_service.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final OtpDeliveryService _otpDeliveryService;
+  final OtpDeliveryService? _otpDeliveryService;
+  final ApiClient _apiClient;
 
   static const int _otpTtlMinutes = 10;
   static const int _maxAttempts = 5;
   static const int _maxSendCount = 5;
   static const int _resendDelaySeconds = 60;
+  static const String _uidKey = 'uid';
+  static const String _otpPrefix = 'otp_code_';
 
-  AuthService({OtpDeliveryService? otpDeliveryService})
-      : _otpDeliveryService =
-            otpDeliveryService ?? OtpDeliveryServiceFactory.create();
-
-  /// ===============================
-  /// TOKEN (UID) STORAGE
-  /// ===============================
+  AuthService({
+    OtpDeliveryService? otpDeliveryService,
+    ApiClient? apiClient,
+  })  : _otpDeliveryService = otpDeliveryService,
+        _apiClient = apiClient ?? ApiClient();
 
   Future<void> saveToken(String uid) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('uid', uid);
+    await prefs.setString(_uidKey, uid);
   }
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('uid');
+    return prefs.getString(_uidKey);
   }
 
   Future<void> deleteToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('uid');
+    await prefs.remove(_uidKey);
+    await _apiClient.clearSession();
   }
 
   Future<String?> currentUser() async {
-    final firebaseUser = _auth.currentUser;
-    if (firebaseUser != null) {
-      await saveToken(firebaseUser.uid);
-      return firebaseUser.uid;
+    final backendUserId = await _apiClient.getUserId();
+    final backendToken = await _apiClient.getAccessToken();
+    if (backendUserId != null &&
+        backendUserId.isNotEmpty &&
+        backendToken != null &&
+        backendToken.isNotEmpty) {
+      return backendUserId;
     }
 
-    final savedUid = await getToken();
-    if (savedUid != null && savedUid.isNotEmpty) {
-      await deleteToken();
+    if (backendToken != null && backendToken.isNotEmpty) {
+      final userData = await currentUserData();
+      final id = userData?['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        await saveToken(id);
+        await _apiClient.saveUserId(id);
+        return id;
+      }
     }
 
     return null;
   }
 
   Future<Map<String, dynamic>?> currentUserData() async {
-    final uid = await currentUser();
-    if (uid == null || uid.isEmpty) {
+    final backendToken = await _apiClient.getAccessToken();
+    if (backendToken == null || backendToken.isEmpty) {
       return null;
     }
 
-    final userDoc = await _firestore.collection('users').doc(uid).get();
-    return userDoc.data();
+    try {
+      final data = await _apiClient.get('/auth/me');
+      final id = data['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        await saveToken(id);
+        await _apiClient.saveUserId(id);
+      }
+      return data;
+    } catch (_) {
+      await _apiClient.clearSession();
+      return null;
+    }
   }
 
   Future<String> currentUserRole() async {
     final userData = await currentUserData();
-    return userData?['role'] ?? 'patient';
+    final role = userData?['role']?.toString();
+    if (role == 'patient') return 'client';
+    return role ?? 'client';
   }
 
   Future<void> updateCurrentUserName(String name) async {
-    final uid = await currentUser();
-    if (uid == null || uid.isEmpty) {
-      throw Exception('user-not-found');
-    }
-
-    await _firestore.collection('users').doc(uid).update({
-      'name': name.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _apiClient.patch('/users/me', body: {'name': name.trim()});
   }
 
   Future<void> updateCurrentUserProfile(Map<String, dynamic> data) async {
-    final uid = await currentUser();
-    if (uid == null || uid.isEmpty) {
-      throw Exception('user-not-found');
+    final payload = <String, dynamic>{};
+    if (data['name'] != null) payload['name'] = data['name'].toString().trim();
+    if (data['phone'] != null) payload['phone'] = data['phone'].toString().trim();
+    if (payload.isNotEmpty) {
+      await _apiClient.patch('/users/me', body: payload);
     }
-
-    final sanitized = <String, dynamic>{};
-    data.forEach((key, value) {
-      if (value is String) {
-        sanitized[key] = value.trim();
-      } else {
-        sanitized[key] = value;
-      }
-    });
-
-    await _firestore.collection('users').doc(uid).set({
-      ...sanitized,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
   }
 
-  /// ===============================
-  /// REGISTER
-  /// ===============================
-
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register(
+    String name,
+    String email,
+    String password, {
+    String role = 'client',
+  }) async {
+    final normalizedRole = _normalizeBackendRole(role);
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
+      final tokenResponse = await _apiClient.post(
+        '/auth/register',
+        auth: false,
+        body: {
+          'name': name.trim(),
+          'email': AuthValidators.normalizeEmail(email),
+          'password': password.trim(),
+          'role': normalizedRole,
+        },
       );
-
-      final user = credential.user;
-
-      if (user == null) {
-        throw Exception('user-null');
-      }
-
-      await saveToken(user.uid);
-
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': name.trim(),
-        'email': AuthValidators.normalizeEmail(email),
-        'authProviders': FieldValue.arrayUnion(['password']),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } on FirebaseAuthException catch (e) {
-      throw Exception(e.code);
-    } catch (e) {
-      throw Exception('unknown-error');
+      await _saveBackendSession(tokenResponse);
+    } on ApiException catch (e) {
+      throw Exception(_authCodeForApiError(e));
+    } catch (_) {
+      throw Exception('backend-unavailable');
     }
   }
-
-  /// ===============================
-  /// LOGIN
-  /// ===============================
 
   Future<void> signIn(String email, String password) async {
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
+      final tokenResponse = await _apiClient.post(
+        '/auth/login',
+        auth: false,
+        body: {
+          'email': AuthValidators.normalizeEmail(email),
+          'password': password.trim(),
+        },
       );
-
-      final user = credential.user;
-
-      if (user == null) {
-        throw Exception('user-null');
-      }
-
-      await saveToken(user.uid);
-      await _firestore.collection('users').doc(user.uid).set({
-        'email': AuthValidators.normalizeEmail(email),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } on FirebaseAuthException catch (e) {
-      throw Exception(e.code);
-    } catch (e) {
-      throw Exception('unknown-error');
+      await _saveBackendSession(tokenResponse);
+    } on ApiException catch (e) {
+      throw Exception(_authCodeForApiError(e));
+    } catch (_) {
+      throw Exception('backend-unavailable');
     }
   }
-
-  /// ===============================
-  /// OTP AUTH
-  /// ===============================
 
   Future<OtpRequestResult> requestOtp({
     required OtpChannel channel,
@@ -180,12 +156,13 @@ class AuthService {
     final normalizedRecipient = _normalizeRecipient(channel, recipient);
     _validateRecipient(channel, normalizedRecipient);
 
-    final docRef = _otpDoc(channel, normalizedRecipient);
-    final snapshot = await docRef.get();
+    final prefs = await SharedPreferences.getInstance();
+    final key = _otpStorageKey(channel, normalizedRecipient);
+    final existingRaw = prefs.getString(key);
     final now = DateTime.now();
-
-    if (snapshot.exists) {
-      final existing = AuthCode.fromJson(snapshot.data()!);
+    AuthCode? existing;
+    if (existingRaw != null && existingRaw.isNotEmpty) {
+      existing = AuthCode.fromJson(jsonDecode(existingRaw));
       if (!existing.isExpired && !existing.canResend) {
         throw Exception('otp-resend-too-soon');
       }
@@ -210,19 +187,17 @@ class AuthService {
       resendAvailableAt:
           now.add(const Duration(seconds: _resendDelaySeconds)),
       attempts: 0,
-      sendCount: snapshot.exists
-          ? AuthCode.fromJson(snapshot.data()!).sendCount + 1
-          : 1,
+      sendCount: existing == null || existing.isExpired
+          ? 1
+          : existing.sendCount + 1,
       maxAttempts: _maxAttempts,
     );
 
-    await docRef.set({
-      ...authCode.toJson(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await prefs.setString(key, jsonEncode(authCode.toJson()));
 
-    final debugCode = await _otpDeliveryService.sendCode(
+    final otpDeliveryService =
+        _otpDeliveryService ?? OtpDeliveryServiceFactory.create();
+    final debugCode = await otpDeliveryService.sendCode(
       channel: channel,
       recipient: normalizedRecipient,
       code: code,
@@ -249,17 +224,16 @@ class AuthService {
       throw Exception('otp-invalid-format');
     }
 
-    final docRef = _otpDoc(channel, normalizedRecipient);
-    final snapshot = await docRef.get();
-
-    if (!snapshot.exists) {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _otpStorageKey(channel, normalizedRecipient);
+    final raw = prefs.getString(key);
+    if (raw == null || raw.isEmpty) {
       throw Exception('otp-not-found');
     }
 
-    final authCode = AuthCode.fromJson(snapshot.data()!);
-
+    final authCode = AuthCode.fromJson(jsonDecode(raw));
     if (authCode.isExpired) {
-      await docRef.delete();
+      await prefs.remove(key);
       throw Exception('otp-expired');
     }
 
@@ -274,39 +248,74 @@ class AuthService {
     );
 
     if (incomingHash != authCode.codeHash) {
-      await docRef.update({
-        'attempts': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final updated = authCode.copyWith(attempts: authCode.attempts + 1);
+      await prefs.setString(key, jsonEncode(updated.toJson()));
       throw Exception('otp-invalid');
     }
 
-    final uid = await _findOrCreateOtpUser(
-      channel: channel,
-      recipient: normalizedRecipient,
-      requestedRole: requestedRole,
+    final tokenResponse = await _apiClient.post(
+      '/auth/passwordless-login',
+      auth: false,
+      body: {
+        if (channel == OtpChannel.email) 'email': normalizedRecipient,
+        if (channel == OtpChannel.whatsapp) 'phone': normalizedRecipient,
+        'role': _normalizeBackendRole(requestedRole),
+      },
     );
-
-    await docRef.delete();
-    await saveToken(uid);
+    await prefs.remove(key);
+    await _saveBackendSession(tokenResponse);
+    final uid = await currentUser();
+    if (uid == null || uid.isEmpty) {
+      throw Exception('missing-user-id');
+    }
     return uid;
   }
 
-  /// ===============================
-  /// LOGOUT
-  /// ===============================
-
   Future<void> signOut() async {
-    await _auth.signOut();
     await deleteToken();
   }
 
-  DocumentReference<Map<String, dynamic>> _otpDoc(
-    OtpChannel channel,
-    String recipient,
-  ) {
+  Future<void> _saveBackendSession(Map<String, dynamic> tokenResponse) async {
+    final token = tokenResponse['access_token']?.toString();
+    if (token == null || token.isEmpty) {
+      throw Exception('missing-access-token');
+    }
+    await _apiClient.saveAccessToken(token);
+    final userData = await _apiClient.get('/auth/me');
+    final id = userData['id']?.toString();
+    if (id == null || id.isEmpty) {
+      throw Exception('missing-user-id');
+    }
+    await saveToken(id);
+    await _apiClient.saveUserId(id);
+  }
+
+  String _normalizeBackendRole(String role) {
+    if (role == 'patient') return 'client';
+    if (role == 'doctor') return 'doctor';
+    if (role == 'admin') return 'admin';
+    return 'client';
+  }
+
+  String _authCodeForApiError(ApiException error) {
+    final message = error.message.toLowerCase();
+    if (error.statusCode == 401) return 'invalid-credential';
+    if (error.statusCode == 409 || message.contains('already')) {
+      return 'email-already-in-use';
+    }
+    if (message.contains('email')) return 'invalid-email';
+    if (message.contains('password')) return 'weak-password';
+    if (message.contains('connection') ||
+        message.contains('xmlhttprequest') ||
+        message.contains('failed')) {
+      return 'backend-unavailable';
+    }
+    return error.message;
+  }
+
+  String _otpStorageKey(OtpChannel channel, String recipient) {
     final id = sha256.convert(utf8.encode('${channel.value}:$recipient'));
-    return _firestore.collection('auth_codes').doc(id.toString());
+    return '$_otpPrefix$id';
   }
 
   String _normalizeRecipient(OtpChannel channel, String recipient) {
@@ -352,81 +361,5 @@ class AuthService {
     return sha256
         .convert(utf8.encode('$recipient:$code:$salt'))
         .toString();
-  }
-
-  Future<String> _findOrCreateOtpUser({
-    required OtpChannel channel,
-    required String recipient,
-    required String requestedRole,
-  }) async {
-    final field = channel == OtpChannel.email ? 'email' : 'phone';
-    final provider = channel.value;
-    final role = requestedRole == 'doctor' ? 'doctor' : 'patient';
-    final users = await _firestore
-        .collection('users')
-        .where(field, isEqualTo: recipient)
-        .limit(1)
-        .get();
-
-    if (users.docs.isNotEmpty) {
-      final doc = users.docs.first;
-      final existingRole = doc.data()['role'];
-      await doc.reference.set({
-        'authProviders': FieldValue.arrayUnion([provider]),
-        'role': role == 'doctor' ? 'doctor' : existingRole ?? 'patient',
-        'lastLoginAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      if (role == 'doctor') {
-        await _ensureDoctorProfile(doc.id, doc.data(), field, recipient);
-      }
-      return doc.id;
-    }
-
-    final userRef = _firestore.collection('users').doc();
-    await userRef.set({
-      'name': 'Новый пользователь',
-      field: recipient,
-      'role': role,
-      'authProviders': [provider],
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'lastLoginAt': FieldValue.serverTimestamp(),
-    });
-
-    if (role == 'doctor') {
-      await _ensureDoctorProfile(userRef.id, {}, field, recipient);
-    }
-
-    return userRef.id;
-  }
-
-  Future<void> _ensureDoctorProfile(
-    String uid,
-    Map<String, dynamic> userData,
-    String contactField,
-    String contact,
-  ) async {
-    final profileRef = _firestore.collection('doctor_profiles').doc(uid);
-    final profile = await profileRef.get();
-
-    if (profile.exists) {
-      return;
-    }
-
-    await profileRef.set({
-      'userId': uid,
-      'name': userData['name'] ?? 'Новый врач',
-      contactField: contact,
-      'specialty': '',
-      'hospital': '',
-      'university': '',
-      'description': '',
-      'consultationFee': 0,
-      'yearsOfExperience': 0,
-      'isOnline': true,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
   }
 }

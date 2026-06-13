@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
@@ -47,6 +46,9 @@ class _DoctorChatScreenState extends State<DoctorChatScreen> {
       text: text,
     );
     _controller.clear();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -59,15 +61,15 @@ class _DoctorChatScreenState extends State<DoctorChatScreen> {
             children: [
               _header(),
               Expanded(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _chatService.watchMessages(widget.chatId),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final docs = snapshot.data?.docs ?? [];
-                    if (docs.isEmpty) {
+                    final messages = snapshot.data ?? [];
+                    if (messages.isEmpty) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(28),
@@ -94,10 +96,11 @@ class _DoctorChatScreenState extends State<DoctorChatScreen> {
                         return ListView.builder(
                           reverse: true,
                           padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                          itemCount: docs.length,
+                          itemCount: messages.length,
                           itemBuilder: (context, index) {
-                            final data = docs[index].data();
-                            final isMe = data['senderId'] == uid;
+                            final data = messages[index];
+                            final isMe =
+                                (data['senderId'] ?? data['sender_id']) == uid;
                             return _messageBubble(data['text'] ?? '', isMe);
                           },
                         );

@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/api_client.dart';
 import '../../theme/app_design.dart';
 
 class DoctorProfileEditorScreen extends StatefulWidget {
@@ -15,6 +15,7 @@ class DoctorProfileEditorScreen extends StatefulWidget {
 }
 
 class _DoctorProfileEditorScreenState extends State<DoctorProfileEditorScreen> {
+  final ApiClient _apiClient = ApiClient();
   final _nameController = TextEditingController();
   final _specialtyController = TextEditingController();
   final _hospitalController = TextEditingController();
@@ -56,11 +57,12 @@ class _DoctorProfileEditorScreenState extends State<DoctorProfileEditorScreen> {
       return;
     }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('doctor_profiles')
-        .doc(uid)
-        .get();
-    final data = doc.data() ?? {};
+    Map<String, dynamic> data = {};
+    try {
+      data = await _apiClient.get('/doctors/me');
+    } catch (_) {
+      data = {};
+    }
 
     if (!mounted) return;
     setState(() {
@@ -71,9 +73,11 @@ class _DoctorProfileEditorScreenState extends State<DoctorProfileEditorScreen> {
       _addressController.text = data['address'] ?? '';
       _universityController.text = data['university'] ?? '';
       _descriptionController.text = data['description'] ?? '';
-      _feeController.text = '${data['consultationFee'] ?? ''}';
-      _experienceController.text = '${data['yearsOfExperience'] ?? ''}';
-      _isOnline = data['isOnline'] ?? true;
+      _feeController.text =
+          '${data['consultationFee'] ?? data['consultation_fee'] ?? ''}';
+      _experienceController.text =
+          '${data['yearsOfExperience'] ?? data['years_of_experience'] ?? ''}';
+      _isOnline = data['isOnline'] ?? data['is_online'] ?? true;
       _isLoading = false;
     });
   }
@@ -95,7 +99,6 @@ class _DoctorProfileEditorScreenState extends State<DoctorProfileEditorScreen> {
     try {
       final point = _cityPoint(_cityController.text.trim());
       final profile = {
-        'userId': uid,
         'name': _nameController.text.trim(),
         'specialty': _specialtyController.text.trim(),
         'hospital': _hospitalController.text.trim(),
@@ -105,23 +108,14 @@ class _DoctorProfileEditorScreenState extends State<DoctorProfileEditorScreen> {
         'longitude': point.$2,
         'university': _universityController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'consultationFee': double.tryParse(_feeController.text.trim()) ?? 0,
-        'yearsOfExperience': int.tryParse(_experienceController.text.trim()) ?? 0,
-        'isOnline': _isOnline,
+        'consultation_fee': double.tryParse(_feeController.text.trim()) ?? 0,
+        'years_of_experience': int.tryParse(_experienceController.text.trim()) ?? 0,
+        'is_online': _isOnline,
         'gender': 'female',
-        'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance
-          .collection('doctor_profiles')
-          .doc(uid)
-          .set(profile, SetOptions(merge: true));
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'name': _nameController.text.trim(),
-        'role': 'doctor',
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await _apiClient.patch('/doctors/me', body: profile);
+      await widget.authService.updateCurrentUserName(_nameController.text.trim());
 
       if (!mounted) return;
       _showMessage('Профиль врача сохранен');

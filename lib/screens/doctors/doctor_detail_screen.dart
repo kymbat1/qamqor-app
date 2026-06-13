@@ -540,7 +540,7 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
             const Padding(
               padding: EdgeInsets.only(bottom: 10),
               child: Text(
-                'Сейчас показаны примеры отзывов. Проверьте правила Firebase для doctor_reviews.',
+                'Сейчас показаны примеры отзывов. Проверьте подключение к backend.',
                 style: TextStyle(color: AppColors.muted),
               ),
             ),
@@ -648,7 +648,7 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
       await _openPatientChat();
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Не удалось создать запись. Проверьте вход и правила Firebase.');
+      _showMessage('Не удалось создать запись. Проверьте вход и backend.');
     } finally {
       if (mounted) setState(() => _isBooking = false);
     }
@@ -675,7 +675,7 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       _showMessage(
-        'Не удалось сохранить отзыв. Проверьте вход и правила Firebase.',
+        'Не удалось сохранить отзыв. Проверьте вход и backend.',
       );
     }
   }

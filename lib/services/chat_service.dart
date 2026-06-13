@@ -1,15 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'api_client.dart';
 
 class ChatService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiClient _apiClient = ApiClient();
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchMessages(String chatId) {
-    return _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+  Stream<List<Map<String, dynamic>>> watchMessages(String chatId) {
+    return Stream.fromFuture(_fetchMessages(chatId));
   }
 
   Future<void> sendMessage({
@@ -21,16 +16,13 @@ class ChatService {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
-    final chatRef = _firestore.collection('chats').doc(chatId);
-    await chatRef.collection('messages').add({
-      'senderId': senderId,
-      'senderRole': senderRole,
+    await _apiClient.post('/chats/$chatId/messages', body: {
       'text': trimmed,
-      'createdAt': FieldValue.serverTimestamp(),
     });
-    await chatRef.set({
-      'lastMessage': trimmed,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchMessages(String chatId) async {
+    final response = await _apiClient.getList('/chats/$chatId/messages');
+    return response.whereType<Map<String, dynamic>>().toList().reversed.toList();
   }
 }

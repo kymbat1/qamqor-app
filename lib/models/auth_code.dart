@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum OtpChannel {
   email,
   whatsapp,
@@ -52,6 +50,23 @@ class AuthCode {
   bool get canResend => DateTime.now().isAfter(resendAvailableAt);
   bool get hasAttemptsLeft => attempts < maxAttempts;
 
+  AuthCode copyWith({
+    int? attempts,
+    int? sendCount,
+  }) {
+    return AuthCode(
+      channel: channel,
+      recipient: recipient,
+      codeHash: codeHash,
+      salt: salt,
+      expiresAt: expiresAt,
+      resendAvailableAt: resendAvailableAt,
+      attempts: attempts ?? this.attempts,
+      sendCount: sendCount ?? this.sendCount,
+      maxAttempts: maxAttempts,
+    );
+  }
+
   factory AuthCode.fromJson(Map<String, dynamic> json) {
     return AuthCode(
       channel: json['channel'] ?? '',
@@ -72,8 +87,8 @@ class AuthCode {
       'recipient': recipient,
       'codeHash': codeHash,
       'salt': salt,
-      'expiresAt': Timestamp.fromDate(expiresAt),
-      'resendAvailableAt': Timestamp.fromDate(resendAvailableAt),
+      'expiresAt': expiresAt.toIso8601String(),
+      'resendAvailableAt': resendAvailableAt.toIso8601String(),
       'attempts': attempts,
       'sendCount': sendCount,
       'maxAttempts': maxAttempts,
@@ -81,11 +96,11 @@ class AuthCode {
   }
 
   static DateTime _readDate(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    }
     if (value is DateTime) {
       return value;
+    }
+    if (value is String && value.isNotEmpty) {
+      return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
     }
     return DateTime.fromMillisecondsSinceEpoch(0);
   }

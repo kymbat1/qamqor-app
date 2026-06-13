@@ -1,31 +1,33 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/doctor_review.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 class ReviewService {
-  final FirebaseFirestore _firestore;
+  final ApiClient _apiClient;
   final AuthService _authService;
 
   ReviewService({
-    FirebaseFirestore? firestore,
+    ApiClient? apiClient,
     AuthService? authService,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+  })  : _apiClient = apiClient ?? ApiClient(),
         _authService = authService ?? AuthService();
 
-  CollectionReference<Map<String, dynamic>> get _reviews =>
-      _firestore.collection('doctor_reviews');
-
   Stream<List<DoctorReview>> watchDoctorReviews(String doctorId) {
-    return _reviews.where('doctorId', isEqualTo: doctorId).snapshots().map(
-      (snapshot) {
-        final reviews = snapshot.docs
-            .map((doc) => DoctorReview.fromJson(doc.data(), doc.id))
-            .toList();
-        reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return reviews;
-      },
+    return Stream.fromFuture(_fetchDoctorReviews(doctorId));
+  }
+
+  Future<List<DoctorReview>> _fetchDoctorReviews(String doctorId) async {
+    final response = await _apiClient.getList(
+      '/reviews/doctors/$doctorId',
+      auth: false,
     );
+    return response
+        .whereType<Map>()
+        .map((json) => DoctorReview.fromJson(
+              Map<String, dynamic>.from(json),
+              json['id']?.toString() ?? '',
+            ))
+        .toList();
   }
 
   Future<void> addReview({
@@ -38,16 +40,9 @@ class ReviewService {
       throw Exception('user-not-authenticated');
     }
 
-    final userData = await _authService.currentUserData() ?? {};
-    final patientName = userData['name'] ?? 'Пациент';
-
-    await _reviews.add({
-      'doctorId': doctorId,
-      'patientId': uid,
-      'patientName': patientName,
+    await _apiClient.post('/reviews/doctors/$doctorId', body: {
       'rating': rating,
       'text': text.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class DoctorReview {
   final String id;
   final String doctorId;
@@ -22,12 +20,12 @@ class DoctorReview {
   factory DoctorReview.fromJson(Map<String, dynamic> json, String id) {
     return DoctorReview(
       id: id,
-      doctorId: json['doctorId'] ?? '',
-      patientId: json['patientId'] ?? '',
-      patientName: json['patientName'] ?? 'Пациент',
+      doctorId: json['doctorId'] ?? json['doctor_id'] ?? '',
+      patientId: json['patientId'] ?? json['client_id'] ?? '',
+      patientName: json['patientName'] ?? json['client_name'] ?? 'Пациент',
       rating: _readDouble(json['rating'], 5),
       text: json['text'] ?? '',
-      createdAt: _readDate(json['createdAt']),
+      createdAt: _readDate(json['createdAt'] ?? json['created_at']),
     );
   }
 
@@ -38,7 +36,7 @@ class DoctorReview {
       'patientName': patientName,
       'rating': rating,
       'text': text,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
@@ -49,8 +47,8 @@ class DoctorReview {
   }
 
   static DateTime _readDate(dynamic value) {
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
     return DateTime.now();
   }
 }

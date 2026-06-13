@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/doctor.dart';
+import '../../services/api_client.dart';
 import '../../theme/app_design.dart';
 import 'doctor_detail_screen.dart';
 
@@ -41,6 +41,7 @@ class DoctorListScreen extends StatefulWidget {
 class _DoctorListScreenState extends State<DoctorListScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
+  final ApiClient _apiClient = ApiClient();
 
   String _searchQuery = '';
   String _cityQuery = '';
@@ -61,18 +62,28 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
   }
 
   Stream<List<Doctor>> _watchDoctors() {
-    return FirebaseFirestore.instance
-        .collection('doctor_profiles')
-        .snapshots()
-        .map((snapshot) {
-      final profiles = snapshot.docs
-          .map((doc) => Doctor.fromJson(doc.data(), doc.id))
+    return Stream.fromFuture(_fetchDoctors());
+  }
+
+  Future<List<Doctor>> _fetchDoctors() async {
+    try {
+      final response = await _apiClient.getList('/doctors', auth: false);
+      final doctors = response
+          .whereType<Map<String, dynamic>>()
+          .map((json) => Doctor.fromJson(json, json['id']?.toString() ?? ''))
           .where((doctor) => doctor.name.trim().isNotEmpty)
           .toList();
-      final ids = profiles.map((doctor) => doctor.id).toSet();
+
+      if (doctors.isEmpty) {
+        return dummyDoctors;
+      }
+
+      final ids = doctors.map((doctor) => doctor.id).toSet();
       final seeds = dummyDoctors.where((doctor) => !ids.contains(doctor.id));
-      return [...profiles, ...seeds];
-    });
+      return [...doctors, ...seeds];
+    } catch (_) {
+      return dummyDoctors;
+    }
   }
 
   List<Doctor> _applyFilters(List<Doctor> doctors) {

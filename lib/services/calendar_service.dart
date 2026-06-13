@@ -1,30 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/cycle_entry.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
+import 'file_download_service.dart';
 
 class CalendarService {
-  final FirebaseFirestore _firestore;
+  final ApiClient _apiClient;
   final AuthService _authService;
 
   CalendarService({
-    FirebaseFirestore? firestore,
+    ApiClient? apiClient,
     AuthService? authService,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+  })  : _apiClient = apiClient ?? ApiClient(),
         _authService = authService ?? AuthService();
 
-  Stream<Map<DateTime, CycleEntry>> watchEntries() async* {
-    final uid = await _requireUserId();
-    yield* _userDoc(uid).snapshots().map((snapshot) {
-      return _entriesFromUserData(uid, snapshot.data());
-    });
+  Stream<Map<DateTime, CycleEntry>> watchEntries() {
+    return Stream.fromFuture(_fetchEntryMap());
   }
 
   Future<Map<DateTime, List<CycleEntry>>> fetchEntries() async {
-    final uid = await _requireUserId();
-    final snapshot = await _userDoc(uid).get();
-    final entries = _entriesFromUserData(uid, snapshot.data());
-
+    final entries = await _fetchEntryMap();
     return entries.map((day, entry) => MapEntry(day, [entry]));
   }
 
@@ -33,52 +27,98 @@ class CalendarService {
     String? flow,
     String? mood,
     List<String> symptoms = const [],
+    String? cyclePhase,
+    double? weightKg,
+    double? heightCm,
+    double? temperatureC,
+    double? sleepHours,
+    int? painLevel,
+    int? energyLevel,
+    int? stressLevel,
+    String? discharge,
+    String? libido,
+    String? appetite,
+    String? activity,
+    String? medication,
     String? note,
   }) async {
-    final uid = await _requireUserId();
+    await _requireUserId();
     final day = CycleEntry.normalizedDay(date);
-    final dayKey = CycleEntry.dateKey(day);
-    final userRef = _userDoc(uid);
-    final snapshot = await userRef.get();
-    final currentEntries = _entriesFromUserData(uid, snapshot.data());
+    final currentEntries = await _fetchEntryMap();
     final existingEntry = currentEntries[day];
     final cycleDay = _calculateCycleDay(currentEntries.keys.toList(), day);
     final now = DateTime.now();
     final entry = CycleEntry(
-      id: dayKey,
-      userId: uid,
+      id: existingEntry?.id ?? CycleEntry.dateKey(day),
+      userId: existingEntry?.userId,
       date: day,
-      dayKey: dayKey,
       cycleDay: cycleDay,
       isPeriodDay: true,
       flow: flow,
       mood: mood,
       symptoms: symptoms,
+      cyclePhase: cyclePhase,
+      weightKg: weightKg,
+      heightCm: heightCm,
+      temperatureC: temperatureC,
+      sleepHours: sleepHours,
+      painLevel: painLevel,
+      energyLevel: energyLevel,
+      stressLevel: stressLevel,
+      discharge: discharge,
+      libido: libido,
+      appetite: appetite,
+      activity: _emptyToNull(activity),
+      medication: _emptyToNull(medication),
       note: (note?.trim().isEmpty ?? true) ? null : note?.trim(),
       createdAt: existingEntry?.createdAt ?? now,
       updatedAt: now,
     );
 
-    currentEntries[day] = entry;
-    await _writeEntries(uid, currentEntries);
+    await _apiClient.post('/cycle', body: entry.toApiJson());
   }
 
   Future<void> removeEntry(DateTime date) async {
-    final uid = await _requireUserId();
-    final userRef = _userDoc(uid);
-    final snapshot = await userRef.get();
-    final currentEntries = _entriesFromUserData(uid, snapshot.data());
-
-    currentEntries.remove(CycleEntry.normalizedDay(date));
-    await _writeEntries(uid, currentEntries);
+    await _requireUserId();
+    final dayKey = CycleEntry.dateKey(CycleEntry.normalizedDay(date));
+    await _apiClient.delete('/cycle/$dayKey');
   }
 
   Future<void> addEntry(DateTime date) {
     return savePeriodEntry(date: date);
   }
 
-  DocumentReference<Map<String, dynamic>> _userDoc(String uid) {
-    return _firestore.collection('users').doc(uid);
+  Future<void> downloadYearReportPdf({DateTime? endDate}) async {
+    await _requireUserId();
+    final end = CycleEntry.normalizedDay(endDate ?? DateTime.now());
+    final start = DateTime(end.year - 1, end.month, end.day);
+    final query = Uri(queryParameters: {
+      'start': CycleEntry.dateKey(start),
+      'end': CycleEntry.dateKey(end),
+    }).query;
+    final bytes = await _apiClient.getBytes('/cycle/report.pdf?$query');
+    downloadBytes(
+      bytes,
+      'cycle-report-${CycleEntry.dateKey(start)}-${CycleEntry.dateKey(end)}.pdf',
+      'application/pdf',
+    );
+  }
+
+  Future<Map<DateTime, CycleEntry>> _fetchEntryMap() async {
+    await _requireUserId();
+    final response = await _apiClient.getList('/cycle');
+    final entries = <DateTime, CycleEntry>{};
+
+    for (final item in response) {
+      if (item is! Map) {
+        continue;
+      }
+      final json = Map<String, dynamic>.from(item);
+      final entry = CycleEntry.fromJson(json, id: json['id']?.toString());
+      entries[CycleEntry.normalizedDay(entry.date)] = entry;
+    }
+
+    return entries;
   }
 
   Future<String> _requireUserId() async {
@@ -87,53 +127,6 @@ class CalendarService {
       throw Exception('user-not-authenticated');
     }
     return uid;
-  }
-
-  Map<DateTime, CycleEntry> _entriesFromUserData(
-    String uid,
-    Map<String, dynamic>? data,
-  ) {
-    final rawEntries = data?['cycleEntries'];
-    if (rawEntries is! Map) {
-      return {};
-    }
-
-    final entries = <DateTime, CycleEntry>{};
-    rawEntries.forEach((key, value) {
-      if (value is! Map) {
-        return;
-      }
-
-      final json = Map<String, dynamic>.from(value);
-      json['userId'] ??= uid;
-      json['dayKey'] ??= key.toString();
-
-      final entry = CycleEntry.fromJson(json, id: key.toString());
-      entries[CycleEntry.normalizedDay(entry.date)] = entry;
-    });
-
-    return entries;
-  }
-
-  Future<void> _writeEntries(
-    String uid,
-    Map<DateTime, CycleEntry> entries,
-  ) async {
-    final cycleEntries = <String, dynamic>{};
-    for (final entry in entries.values) {
-      cycleEntries[entry.dayKey] = entry.toJson();
-    }
-
-    final payload = {
-      'cycleEntries': cycleEntries,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    try {
-      await _userDoc(uid).update(payload);
-    } catch (_) {
-      await _userDoc(uid).set(payload, SetOptions(merge: true));
-    }
   }
 
   int _calculateCycleDay(List<DateTime> periodDays, DateTime date) {
@@ -154,5 +147,10 @@ class CalendarService {
     }
 
     return cycleDay;
+  }
+
+  String? _emptyToNull(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 }

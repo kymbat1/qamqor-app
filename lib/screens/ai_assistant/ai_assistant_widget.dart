@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../services/ai_assistant_service.dart';
+import '../../services/cycle_context_service.dart';
 import '../../theme/app_design.dart';
 
 class ChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
+  final bool isError;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
+    this.isError = false,
   });
 }
 
@@ -24,13 +28,17 @@ class AiAssistantWidget extends StatefulWidget {
 class _AiAssistantWidgetState extends State<AiAssistantWidget> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final AiAssistantService _assistantService = AiAssistantService();
+  final CycleContextService _cycleContextService = CycleContextService();
 
-  static const double _widgetHeight = 400;
+  static const double _widgetHeight = 420;
+
+  bool _isResponding = false;
 
   final List<ChatMessage> _messages = [
     ChatMessage(
       text:
-          'Здравствуйте. Я анонимный помощник Qamqor. Могу подсказать, что отметить в календаре, когда лучше записаться к врачу и как подготовиться к приему.',
+          'Здравствуйте. Я ассистент Qamqor. Я могу учитывать отметки из календаря цикла: текущие месячные, фазу, симптомы и заметки. Напишите, что вас беспокоит.',
       isUser: false,
       timestamp: DateTime.now(),
     ),
@@ -43,27 +51,30 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
     super.dispose();
   }
 
-  void _handleSubmitted(String text) {
+  Future<void> _handleSubmitted(String text) async {
     final value = text.trim();
-    if (value.isEmpty) return;
+    if (value.isEmpty || _isResponding) {
+      return;
+    }
 
     _textController.clear();
     setState(() {
+      _isResponding = true;
       _messages.add(
         ChatMessage(text: value, isUser: true, timestamp: DateTime.now()),
       );
     });
-
-    _simulateAiResponse(value);
     _scrollToBottom();
-  }
 
-  void _simulateAiResponse(String userText) {
-    final lower = userText.toLowerCase();
-    final response = _responseFor(lower);
-
-    Future.delayed(const Duration(milliseconds: 650), () {
-      if (!mounted) return;
+    try {
+      final cycleContext = await _cycleContextService.buildPromptContext();
+      final response = await _assistantService.ask(
+        question: value,
+        cycleContext: cycleContext,
+      );
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _messages.add(
           ChatMessage(
@@ -73,33 +84,53 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
           ),
         );
       });
-      _scrollToBottom();
-    });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            text: _friendlyError(error),
+            isUser: false,
+            timestamp: DateTime.now(),
+            isError: true,
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isResponding = false);
+        _scrollToBottom();
+      }
+    }
   }
 
-  String _responseFor(String text) {
-    if (text.contains('цикл') ||
-        text.contains('месяч') ||
-        text.contains('период')) {
-      return 'Если вопрос про цикл, лучше отметить первый день месячных, интенсивность, боль, настроение и необычные симптомы. Если цикл резко изменился или боль сильная, стоит записаться к врачу.';
+  String _friendlyError(Object error) {
+    final text = error.toString();
+    if (text.contains('user-not-authenticated')) {
+      return 'Я смогу учитывать календарь после входа в аккаунт. Войдите и повторите вопрос.';
     }
-    if (text.contains('овуляц') || text.contains('беремен')) {
-      return 'Прогноз овуляции в приложении ориентировочный. На него влияют стресс, сон, болезнь и перелеты. Для точного планирования беременности лучше обсудить ситуацию с гинекологом или репродуктологом.';
+    if (text.contains('permission-denied')) {
+      return 'Backend не разрешил прочитать календарь цикла. Проверьте вход в аккаунт.';
     }
-    if (text.contains('боль') ||
-        text.contains('кров') ||
-        text.contains('температур')) {
-      return 'Если боль сильная, есть температура, необычное кровотечение или резкое ухудшение самочувствия, не откладывайте консультацию врача. В разделе “Запись” можно выбрать специалиста.';
+    if (text.contains('OPENAI') ||
+        text.contains('OpenAI') ||
+        text.contains('XAI') ||
+        text.contains('Grok') ||
+        text.contains('Код ошибки') ||
+        text.contains('FastAPI') ||
+        text.contains('backend')) {
+      return text;
     }
-    if (text.contains('врач') || text.contains('запис')) {
-      return 'В разделе “Запись” можно выбрать специалиста по цене, опыту, рейтингу и локации. После записи появится чат с врачом.';
-    }
-    return 'Я могу помочь с вопросами про цикл, симптомы, подготовку к врачу и записи. Опишите, что вас беспокоит, и я подскажу следующий безопасный шаг.';
+    return 'Не получилось получить ответ ИИ. Проверьте интернет, .env и попробуйте еще раз.';
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
+      if (!_scrollController.hasClients) {
+        return;
+      }
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 260),
@@ -123,8 +154,13 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
               child: ListView.builder(
                 controller: _scrollController,
                 padding: const EdgeInsets.all(12),
-                itemCount: _messages.length,
-                itemBuilder: (_, index) => _messageBubble(_messages[index]),
+                itemCount: _messages.length + (_isResponding ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (_isResponding && index == _messages.length) {
+                    return _typingBubble();
+                  }
+                  return _messageBubble(_messages[index]);
+                },
               ),
             ),
             _textComposer(),
@@ -146,8 +182,10 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
               color: AppColors.lavender,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.psychology_outlined,
-                color: AppColors.blush),
+            child: const Icon(
+              Icons.psychology_outlined,
+              color: AppColors.blush,
+            ),
           ),
           const SizedBox(width: 10),
           const Expanded(
@@ -155,7 +193,7 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Анонимный ассистент',
+                  'ИИ-ассистент',
                   style: TextStyle(
                     color: AppColors.ink,
                     fontWeight: FontWeight.w900,
@@ -163,7 +201,7 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
                   ),
                 ),
                 Text(
-                  'Быстрые подсказки по здоровью',
+                  'Учитывает календарь цикла и симптомы',
                   style: TextStyle(
                     color: AppColors.muted,
                     fontWeight: FontWeight.w600,
@@ -173,6 +211,15 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
               ],
             ),
           ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: _isResponding ? AppColors.coral : AppColors.mint,
+              shape: BoxShape.circle,
+            ),
+          ),
         ],
       ),
     );
@@ -180,14 +227,20 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
 
   Widget _messageBubble(ChatMessage message) {
     final isUser = message.isUser;
+    final background = message.isError
+        ? const Color(0xFFFFE5E5)
+        : isUser
+            ? AppColors.blush
+            : AppColors.lavender;
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
-        constraints: const BoxConstraints(maxWidth: 300),
+        constraints: const BoxConstraints(maxWidth: 310),
         decoration: BoxDecoration(
-          color: isUser ? AppColors.blush : AppColors.lavender,
+          color: background,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -207,6 +260,41 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
     );
   }
 
+  Widget _typingBubble() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.lavender,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.blush,
+              ),
+            ),
+            SizedBox(width: 10),
+            Text(
+              'Анализирую цикл...',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _textComposer() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
@@ -217,6 +305,7 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
               controller: _textController,
               minLines: 1,
               maxLines: 3,
+              enabled: !_isResponding,
               onSubmitted: _handleSubmitted,
               decoration: const InputDecoration(
                 hintText: 'Напишите вопрос...',
@@ -226,7 +315,9 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            onPressed: () => _handleSubmitted(_textController.text),
+            onPressed: _isResponding
+                ? null
+                : () => _handleSubmitted(_textController.text),
             style: IconButton.styleFrom(backgroundColor: AppColors.blush),
             icon: const Icon(Icons.send_rounded, color: Colors.white),
           ),

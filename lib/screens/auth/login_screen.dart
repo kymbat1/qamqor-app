@@ -29,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   LoginMethod _method = LoginMethod.password;
   OtpChannel _channel = OtpChannel.email;
-  String _role = 'patient';
+  String _role = 'client';
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
@@ -49,8 +49,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Введите корректный email');
       return;
     }
-    if (password.length < 6) {
-      _showMessage('Пароль должен быть минимум 6 символов');
+    if (password.length < 8) {
+      _showMessage('Пароль должен быть минимум 8 символов');
       return;
     }
 
@@ -123,6 +123,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Неверный email или пароль.';
     }
     if (text.contains('invalid-email')) return 'Некорректный email.';
+    if (text.contains('backend-unavailable')) {
+      return 'Backend недоступен. Проверьте, что FastAPI запущен на 8000.';
+    }
     return 'Не удалось войти по паролю.';
   }
 
@@ -330,9 +333,9 @@ class _LoginScreenState extends State<LoginScreen> {
       SegmentedButton<String>(
         segments: const [
           ButtonSegment(
-            value: 'patient',
+            value: 'client',
             icon: Icon(Icons.person_outline),
-            label: Text('Пациент'),
+            label: Text('Клиент'),
           ),
           ButtonSegment(
             value: 'doctor',

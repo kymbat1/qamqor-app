@@ -6,6 +6,7 @@ import 'auth/login_screen.dart';
 import 'calendar/cycle_calendar_screen.dart';
 import 'doctors/doctor_dashboard_screen.dart';
 import 'doctors/doctor_list_screen.dart';
+import 'forum/forum_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
 
@@ -35,10 +36,11 @@ class _MainWrapperState extends State<MainWrapper> {
         showBottomNavigation: false,
         onOpenCalendar: () => _onItemTapped(1),
         onOpenDoctors: () => _onItemTapped(2),
-        onOpenProfile: () => _onItemTapped(3),
+        onOpenProfile: () => _onItemTapped(4),
       ),
       const CycleCalendarContent(),
       const DoctorListScreen(),
+      const ForumScreen(),
       ProfileScreen(authService: widget.authService),
     ];
     _checkLoginStatus();
@@ -99,7 +101,8 @@ class _MainWrapperState extends State<MainWrapper> {
               _navItem(Icons.home_rounded, 'Главная', 0),
               _navItem(Icons.calendar_month_rounded, 'Цикл', 1),
               _navItem(Icons.event_available_rounded, 'Запись', 2),
-              _navItem(Icons.person_rounded, 'Профиль', 3),
+              _navItem(Icons.forum_rounded, 'Форум', 3),
+              _navItem(Icons.person_rounded, 'Профиль', 4),
             ],
           ),
         ),

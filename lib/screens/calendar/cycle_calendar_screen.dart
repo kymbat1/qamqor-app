@@ -30,6 +30,7 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
   bool _isSaving = false;
+  bool _isExporting = false;
 
   static const List<String> _flowOptions = [
     'Легкие',
@@ -54,6 +55,42 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
     'Акне',
     'Сонливость',
     'Перепады настроения',
+    'Боль в груди',
+    'Тяга к сладкому',
+    'Боль в пояснице',
+    'Озноб',
+    'Раздражительность',
+    'Слабость',
+  ];
+
+  static const List<String> _phaseOptions = [
+    'Менструальная',
+    'Фолликулярная',
+    'Овуляция',
+    'Лютеиновая',
+    'ПМС',
+  ];
+
+  static const List<String> _dischargeOptions = [
+    'Нет',
+    'Светлые',
+    'Кремовые',
+    'Тянущиеся',
+    'Водянистые',
+    'Мажущие',
+  ];
+
+  static const List<String> _libidoOptions = [
+    'Низкое',
+    'Обычное',
+    'Высокое',
+  ];
+
+  static const List<String> _appetiteOptions = [
+    'Ниже обычного',
+    'Обычный',
+    'Выше обычного',
+    'Тянет на сладкое',
   ];
 
   @override
@@ -86,6 +123,8 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
                         child: _Header(
                           title: 'Календарь цикла',
                           subtitle: _selectedDayLabel(_selectedDay),
+                          isExporting: _isExporting,
+                          onExport: _downloadReport,
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -156,6 +195,10 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
           flowOptions: _flowOptions,
           moodOptions: _moodOptions,
           symptomOptions: _symptomOptions,
+          phaseOptions: _phaseOptions,
+          dischargeOptions: _dischargeOptions,
+          libidoOptions: _libidoOptions,
+          appetiteOptions: _appetiteOptions,
         );
       },
     );
@@ -175,6 +218,19 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
         flow: result.flow,
         mood: result.mood,
         symptoms: result.symptoms,
+        cyclePhase: result.cyclePhase,
+        weightKg: result.weightKg,
+        heightCm: result.heightCm,
+        temperatureC: result.temperatureC,
+        sleepHours: result.sleepHours,
+        painLevel: result.painLevel,
+        energyLevel: result.energyLevel,
+        stressLevel: result.stressLevel,
+        discharge: result.discharge,
+        libido: result.libido,
+        appetite: result.appetite,
+        activity: result.activity,
+        medication: result.medication,
         note: result.note,
       );
       _showSnack('День цикла сохранен');
@@ -183,6 +239,20 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _downloadReport() async {
+    setState(() => _isExporting = true);
+    try {
+      await _calendarService.downloadYearReportPdf();
+      _showSnack('PDF-отчет за год скачан');
+    } catch (e) {
+      _showSnack('Не получилось скачать PDF-отчет. Проверьте backend.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
       }
     }
   }
@@ -236,20 +306,26 @@ class _CycleCalendarContentState extends State<CycleCalendarContent> {
     if (text.contains('user-not-authenticated')) {
       return 'Войдите в аккаунт, чтобы вести календарь';
     }
-    if (text.contains('permission-denied')) {
-      return 'Firebase не разрешил сохранить данные. Проверьте правила Firestore.';
+    if (text.contains('permission-denied') ||
+        text.contains('client role required') ||
+        text.contains('403')) {
+      return 'Календарь цикла доступен для аккаунта клиента.';
     }
-    return 'Не получилось загрузить календарь. Попробуйте еще раз.';
+    return 'Не получилось загрузить календарь. Проверьте backend и попробуйте еще раз.';
   }
 }
 
 class _Header extends StatelessWidget {
   final String title;
   final String subtitle;
+  final bool isExporting;
+  final VoidCallback onExport;
 
   const _Header({
     required this.title,
     required this.subtitle,
+    required this.isExporting,
+    required this.onExport,
   });
 
   @override
@@ -288,9 +364,19 @@ class _Header extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: AppShadows.soft,
           ),
-          child: const Icon(
-            Icons.auto_awesome_rounded,
-            color: AppColors.blush,
+          child: IconButton(
+            tooltip: 'Скачать PDF-отчет за год',
+            onPressed: isExporting ? null : onExport,
+            icon: isExporting
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.picture_as_pdf_rounded,
+                    color: AppColors.blush,
+                  ),
           ),
         ),
       ],
@@ -751,8 +837,21 @@ class _SelectedDayCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (entry?.flow != null) _InfoChip('Выделения: ${entry!.flow}'),
+                if (entry?.flow != null) _InfoChip('Интенсивность: ${entry!.flow}'),
                 if (entry?.mood != null) _InfoChip('Настроение: ${entry!.mood}'),
+                if (entry?.cyclePhase != null) _InfoChip('Фаза: ${entry!.cyclePhase}'),
+                if (entry?.painLevel != null) _InfoChip('Боль: ${entry!.painLevel}/10'),
+                if (entry?.energyLevel != null) _InfoChip('Энергия: ${entry!.energyLevel}/5'),
+                if (entry?.stressLevel != null) _InfoChip('Стресс: ${entry!.stressLevel}/5'),
+                if (entry?.weightKg != null) _InfoChip('Вес: ${_formatMetric(entry!.weightKg!)} кг'),
+                if (entry?.heightCm != null) _InfoChip('Рост: ${_formatMetric(entry!.heightCm!)} см'),
+                if (entry?.temperatureC != null) _InfoChip('Темп.: ${_formatMetric(entry!.temperatureC!)}'),
+                if (entry?.sleepHours != null) _InfoChip('Сон: ${_formatMetric(entry!.sleepHours!)} ч'),
+                if (entry?.discharge != null) _InfoChip('Выделения: ${entry!.discharge}'),
+                if (entry?.libido != null) _InfoChip('Либидо: ${entry!.libido}'),
+                if (entry?.appetite != null) _InfoChip('Аппетит: ${entry!.appetite}'),
+                if (entry?.activity?.isNotEmpty ?? false) _InfoChip('Активность: ${entry!.activity}'),
+                if (entry?.medication?.isNotEmpty ?? false) _InfoChip('Лекарства: ${entry!.medication}'),
                 ...?entry?.symptoms.map(_InfoChip.new),
               ],
             ),
@@ -791,6 +890,13 @@ class _SelectedDayCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatMetric(double value) {
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1);
   }
 }
 
@@ -950,6 +1056,10 @@ class _EntrySheet extends StatefulWidget {
   final List<String> flowOptions;
   final List<String> moodOptions;
   final List<String> symptomOptions;
+  final List<String> phaseOptions;
+  final List<String> dischargeOptions;
+  final List<String> libidoOptions;
+  final List<String> appetiteOptions;
 
   const _EntrySheet({
     required this.selectedDay,
@@ -957,6 +1067,10 @@ class _EntrySheet extends StatefulWidget {
     required this.flowOptions,
     required this.moodOptions,
     required this.symptomOptions,
+    required this.phaseOptions,
+    required this.dischargeOptions,
+    required this.libidoOptions,
+    required this.appetiteOptions,
   });
 
   @override
@@ -966,7 +1080,20 @@ class _EntrySheet extends StatefulWidget {
 class _EntrySheetState extends State<_EntrySheet> {
   late String _flow;
   late String _mood;
+  late String _cyclePhase;
+  late String _discharge;
+  late String _libido;
+  late String _appetite;
   late Set<String> _symptoms;
+  late double _painLevel;
+  late double _energyLevel;
+  late double _stressLevel;
+  late TextEditingController _weightController;
+  late TextEditingController _heightController;
+  late TextEditingController _temperatureController;
+  late TextEditingController _sleepController;
+  late TextEditingController _activityController;
+  late TextEditingController _medicationController;
   late TextEditingController _noteController;
 
   @override
@@ -974,12 +1101,36 @@ class _EntrySheetState extends State<_EntrySheet> {
     super.initState();
     _flow = widget.entry?.flow ?? widget.flowOptions[1];
     _mood = widget.entry?.mood ?? widget.moodOptions.first;
+    _cyclePhase = widget.entry?.cyclePhase ?? widget.phaseOptions.first;
+    _discharge = widget.entry?.discharge ?? widget.dischargeOptions.first;
+    _libido = widget.entry?.libido ?? widget.libidoOptions[1];
+    _appetite = widget.entry?.appetite ?? widget.appetiteOptions[1];
     _symptoms = {...?widget.entry?.symptoms};
+    _painLevel = (widget.entry?.painLevel ?? 0).toDouble();
+    _energyLevel = (widget.entry?.energyLevel ?? 3).toDouble();
+    _stressLevel = (widget.entry?.stressLevel ?? 3).toDouble();
+    _weightController =
+        TextEditingController(text: _formatNumber(widget.entry?.weightKg));
+    _heightController =
+        TextEditingController(text: _formatNumber(widget.entry?.heightCm));
+    _temperatureController =
+        TextEditingController(text: _formatNumber(widget.entry?.temperatureC));
+    _sleepController =
+        TextEditingController(text: _formatNumber(widget.entry?.sleepHours));
+    _activityController = TextEditingController(text: widget.entry?.activity ?? '');
+    _medicationController =
+        TextEditingController(text: widget.entry?.medication ?? '');
     _noteController = TextEditingController(text: widget.entry?.note ?? '');
   }
 
   @override
   void dispose() {
+    _weightController.dispose();
+    _heightController.dispose();
+    _temperatureController.dispose();
+    _sleepController.dispose();
+    _activityController.dispose();
+    _medicationController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -1031,6 +1182,14 @@ class _EntrySheetState extends State<_EntrySheet> {
               ),
               const SizedBox(height: 20),
               _SheetSection(
+                title: 'Фаза цикла',
+                child: _ChoiceWrap(
+                  options: widget.phaseOptions,
+                  selected: {_cyclePhase},
+                  onTap: (value) => setState(() => _cyclePhase = value),
+                ),
+              ),
+              _SheetSection(
                 title: 'Интенсивность',
                 child: _ChoiceWrap(
                   options: widget.flowOptions,
@@ -1062,6 +1221,122 @@ class _EntrySheetState extends State<_EntrySheet> {
                   },
                 ),
               ),
+              _SheetSection(
+                title: 'Шкалы самочувствия',
+                child: Column(
+                  children: [
+                    _MetricSlider(
+                      label: 'Боль',
+                      value: _painLevel,
+                      min: 0,
+                      max: 10,
+                      divisions: 10,
+                      onChanged: (value) => setState(() => _painLevel = value),
+                    ),
+                    _MetricSlider(
+                      label: 'Энергия',
+                      value: _energyLevel,
+                      min: 1,
+                      max: 5,
+                      divisions: 4,
+                      onChanged: (value) => setState(() => _energyLevel = value),
+                    ),
+                    _MetricSlider(
+                      label: 'Стресс',
+                      value: _stressLevel,
+                      min: 1,
+                      max: 5,
+                      divisions: 4,
+                      onChanged: (value) => setState(() => _stressLevel = value),
+                    ),
+                  ],
+                ),
+              ),
+              _SheetSection(
+                title: 'Тело и сон',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _NumberField(
+                            controller: _weightController,
+                            label: 'Вес, кг',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _NumberField(
+                            controller: _heightController,
+                            label: 'Рост, см',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _NumberField(
+                            controller: _temperatureController,
+                            label: 'Температура',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _NumberField(
+                            controller: _sleepController,
+                            label: 'Сон, часов',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              _SheetSection(
+                title: 'Дополнительно',
+                child: Column(
+                  children: [
+                    _SelectRow(
+                      label: 'Выделения',
+                      value: _discharge,
+                      options: widget.dischargeOptions,
+                      onChanged: (value) => setState(() => _discharge = value),
+                    ),
+                    const SizedBox(height: 10),
+                    _SelectRow(
+                      label: 'Либидо',
+                      value: _libido,
+                      options: widget.libidoOptions,
+                      onChanged: (value) => setState(() => _libido = value),
+                    ),
+                    const SizedBox(height: 10),
+                    _SelectRow(
+                      label: 'Аппетит',
+                      value: _appetite,
+                      options: widget.appetiteOptions,
+                      onChanged: (value) => setState(() => _appetite = value),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _activityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Активность',
+                        hintText: 'Например: прогулка 40 минут',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _medicationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Лекарства / добавки',
+                        hintText: 'Например: ибупрофен, железо',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: _noteController,
@@ -1083,6 +1358,19 @@ class _EntrySheetState extends State<_EntrySheet> {
                       flow: _flow,
                       mood: _mood,
                       symptoms: _symptoms.toList()..sort(),
+                      cyclePhase: _cyclePhase,
+                      weightKg: _parseDouble(_weightController.text),
+                      heightCm: _parseDouble(_heightController.text),
+                      temperatureC: _parseDouble(_temperatureController.text),
+                      sleepHours: _parseDouble(_sleepController.text),
+                      painLevel: _painLevel.round(),
+                      energyLevel: _energyLevel.round(),
+                      stressLevel: _stressLevel.round(),
+                      discharge: _discharge,
+                      libido: _libido,
+                      appetite: _appetite,
+                      activity: _activityController.text,
+                      medication: _medicationController.text,
                       note: _noteController.text,
                     ),
                   );
@@ -1092,6 +1380,126 @@ class _EntrySheetState extends State<_EntrySheet> {
           ),
         ),
       ),
+    );
+  }
+
+  static String _formatNumber(double? value) {
+    if (value == null) return '';
+    if (value == value.roundToDouble()) return value.round().toString();
+    return value.toStringAsFixed(1);
+  }
+
+  static double? _parseDouble(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+}
+
+class _MetricSlider extends StatelessWidget {
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
+
+  const _MetricSlider({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              value.round().toString(),
+              style: const TextStyle(
+                color: AppColors.blush,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          divisions: divisions,
+          activeColor: AppColors.blush,
+          inactiveColor: AppColors.lavender,
+          label: value.round().toString(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _NumberField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+
+  const _NumberField({
+    required this.controller,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: label),
+    );
+  }
+}
+
+class _SelectRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  const _SelectRow({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      items: options
+          .map(
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(item),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
     );
   }
 }
@@ -1174,12 +1582,38 @@ class _EntryFormResult {
   final String flow;
   final String mood;
   final List<String> symptoms;
+  final String cyclePhase;
+  final double? weightKg;
+  final double? heightCm;
+  final double? temperatureC;
+  final double? sleepHours;
+  final int painLevel;
+  final int energyLevel;
+  final int stressLevel;
+  final String discharge;
+  final String libido;
+  final String appetite;
+  final String activity;
+  final String medication;
   final String note;
 
   _EntryFormResult({
     required this.flow,
     required this.mood,
     required this.symptoms,
+    required this.cyclePhase,
+    required this.weightKg,
+    required this.heightCm,
+    required this.temperatureC,
+    required this.sleepHours,
+    required this.painLevel,
+    required this.energyLevel,
+    required this.stressLevel,
+    required this.discharge,
+    required this.libido,
+    required this.appetite,
+    required this.activity,
+    required this.medication,
     required this.note,
   });
 }

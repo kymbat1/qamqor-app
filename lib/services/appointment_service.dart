@@ -1,95 +1,49 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/appointment.dart';
 import '../models/doctor.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 class AppointmentService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final AuthService _authService;
+  final ApiClient _apiClient;
 
   AppointmentService({AuthService? authService})
-      : _authService = authService ?? AuthService();
+      : _apiClient = ApiClient();
 
   Future<String> createAppointment({
     required Doctor doctor,
     required DateTime dateTime,
   }) async {
-    final patientId = await _authService.currentUser();
-    if (patientId == null || patientId.isEmpty) {
-      throw Exception('user-not-found');
-    }
-
-    final userData = await _authService.currentUserData() ?? {};
-    final patientName = userData['name'] ?? 'Пациент';
-    final patientContact = userData['email'] ?? userData['phone'] ?? '';
-    final doctorId = doctor.id.isNotEmpty ? doctor.id : _fallbackDoctorId(doctor.name);
-    final appointmentRef = _firestore.collection('appointments').doc();
-    final chatId = _chatId(patientId, doctorId);
-
-    await appointmentRef.set({
-      'patientId': patientId,
-      'patientName': patientName,
-      'patientContact': patientContact,
-      'doctorId': doctorId,
-      'doctorName': doctor.name,
-      'doctorSpecialty': doctor.specialty,
-      'dateTime': Timestamp.fromDate(dateTime),
-      'status': 'scheduled',
-      'chatId': chatId,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final response = await _apiClient.post('/appointments', body: {
+      'doctor_id': doctor.id.isNotEmpty ? doctor.id : _fallbackDoctorId(doctor.name),
+      'starts_at': dateTime.toUtc().toIso8601String(),
+      'reason': '',
     });
-
-    await _firestore.collection('chats').doc(chatId).set({
-      'patientId': patientId,
-      'patientName': patientName,
-      'doctorId': doctorId,
-      'doctorName': doctor.name,
-      'appointmentId': appointmentRef.id,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    return appointmentRef.id;
+    return response['id']?.toString() ?? '';
   }
 
   Stream<List<Appointment>> watchDoctorAppointments(String doctorId) {
-    return _firestore
-        .collection('appointments')
-        .where('doctorId', isEqualTo: doctorId)
-        .snapshots()
-        .map((snapshot) {
-      final items = snapshot.docs
-          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-          .toList();
-      items.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-      return items;
-    });
+    return Stream.fromFuture(_fetchAppointments());
   }
 
   Stream<List<Appointment>> watchPatientAppointments(String patientId) {
-    return _firestore
-        .collection('appointments')
-        .where('patientId', isEqualTo: patientId)
-        .snapshots()
-        .map((snapshot) {
-      final items = snapshot.docs
-          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-          .toList();
-      items.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-      return items;
-    });
+    return Stream.fromFuture(_fetchAppointments());
   }
 
   Future<void> updateAppointmentStatus(String appointmentId, String status) {
-    return _firestore.collection('appointments').doc(appointmentId).update({
-      'status': status,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    return _apiClient.patch(
+      '/appointments/$appointmentId/status',
+      body: {'status': status},
+    );
   }
 
-  String _chatId(String patientId, String doctorId) {
-    return '${doctorId}_$patientId';
+  Future<List<Appointment>> _fetchAppointments() async {
+    final response = await _apiClient.getList('/appointments');
+    final items = response
+        .whereType<Map<String, dynamic>>()
+        .map((json) => Appointment.fromJson(json, json['id']?.toString() ?? ''))
+        .toList();
+    items.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return items;
   }
 
   String _fallbackDoctorId(String name) {

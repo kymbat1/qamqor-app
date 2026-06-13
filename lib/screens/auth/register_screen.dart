@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_design.dart';
 import '../../utils/auth_validators.dart';
+import '../main_wrapper.dart';
 
 class RegisterScreen extends StatefulWidget {
   final AuthService authService;
@@ -22,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+  String _role = 'client';
 
   @override
   void dispose() {
@@ -46,8 +48,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showMessage('Введите корректный email');
       return;
     }
-    if (password.length < 6) {
-      _showMessage('Пароль должен быть минимум 6 символов');
+    if (password.length < 8) {
+      _showMessage('Пароль должен быть минимум 8 символов');
       return;
     }
     if (password != confirmPassword) {
@@ -57,10 +59,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await widget.authService.register(name, email, password);
+      await widget.authService.register(name, email, password, role: _role);
       if (!mounted) return;
-      _showMessage('Аккаунт создан. Теперь можно войти.');
-      Navigator.pop(context);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainWrapper(authService: widget.authService),
+        ),
+        (_) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       _showMessage(_messageForError(e));
@@ -79,6 +86,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (text.contains('invalid-email')) {
       return 'Некорректный email';
+    }
+    if (text.contains('backend-unavailable')) {
+      return 'Backend недоступен. Проверьте, что FastAPI запущен на 8000.';
     }
     return 'Не удалось создать аккаунт';
   }
@@ -112,7 +122,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Быстрая регистрация по email и паролю для проверки приложения.',
+                  'Регистрация через Python backend и PostgreSQL. Выберите роль, чтобы открыть нужный интерфейс.',
                   style: TextStyle(
                     color: AppColors.muted,
                     height: 1.35,
@@ -131,6 +141,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                       ),
+                      _roleSelector(),
                       _passwordField(),
                       _field(
                         _confirmPasswordController,
@@ -152,6 +163,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _roleSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(
+            value: 'client',
+            icon: Icon(Icons.person_outline),
+            label: Text('Клиент'),
+          ),
+          ButtonSegment(
+            value: 'doctor',
+            icon: Icon(Icons.medical_services_outlined),
+            label: Text('Доктор'),
+          ),
+        ],
+        selected: {_role},
+        onSelectionChanged: (selection) {
+          setState(() => _role = selection.first);
+        },
       ),
     );
   }

@@ -71,7 +71,10 @@ class OtpDeliveryServiceFactory {
     if (mode == 'http') {
       final baseUrl = dotenv.env['OTP_API_BASE_URL'];
       if (baseUrl == null || baseUrl.isEmpty) {
-        throw Exception('otp-api-base-url-missing');
+        debugPrint(
+          'OTP_DELIVERY_MODE=http, but OTP_API_BASE_URL is empty. Falling back to debug OTP delivery.',
+        );
+        return DebugOtpDeliveryService();
       }
 
       return HttpOtpDeliveryService(

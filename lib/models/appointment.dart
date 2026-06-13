@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Appointment {
   final String id;
   final String patientId;
@@ -30,16 +28,18 @@ class Appointment {
   factory Appointment.fromJson(Map<String, dynamic> json, String id) {
     return Appointment(
       id: id,
-      patientId: json['patientId'] ?? '',
-      patientName: json['patientName'] ?? '',
-      patientContact: json['patientContact'] ?? '',
-      doctorId: json['doctorId'] ?? '',
-      doctorName: json['doctorName'] ?? '',
-      doctorSpecialty: json['doctorSpecialty'] ?? '',
-      dateTime: _readDate(json['dateTime']),
+      patientId: json['patientId'] ?? json['client_id'] ?? '',
+      patientName: json['patientName'] ?? json['client_name'] ?? '',
+      patientContact: json['patientContact'] ?? json['client_contact'] ?? '',
+      doctorId: json['doctorId'] ?? json['doctor_id'] ?? '',
+      doctorName: json['doctorName'] ?? json['doctor_name'] ?? '',
+      doctorSpecialty: json['doctorSpecialty'] ?? json['doctor_specialty'] ?? '',
+      dateTime: _readDate(json['dateTime'] ?? json['starts_at']),
       status: json['status'] ?? 'scheduled',
-      chatId: json['chatId'] ?? '',
-      createdAt: json['createdAt'] == null ? null : _readDate(json['createdAt']),
+      chatId: json['chatId'] ?? json['chat_id'] ?? '',
+      createdAt: json['createdAt'] == null && json['created_at'] == null
+          ? null
+          : _readDate(json['createdAt'] ?? json['created_at']),
     );
   }
 
@@ -51,21 +51,19 @@ class Appointment {
       'doctorId': doctorId,
       'doctorName': doctorName,
       'doctorSpecialty': doctorSpecialty,
-      'dateTime': Timestamp.fromDate(dateTime),
+      'dateTime': dateTime.toIso8601String(),
       'status': status,
       'chatId': chatId,
-      'createdAt': createdAt == null
-          ? FieldValue.serverTimestamp()
-          : Timestamp.fromDate(createdAt!),
+      'createdAt': createdAt?.toIso8601String(),
     };
   }
 
   static DateTime _readDate(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    }
     if (value is DateTime) {
       return value;
+    }
+    if (value is String) {
+      return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
     }
     return DateTime.now();
   }
