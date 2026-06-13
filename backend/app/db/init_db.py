@@ -10,6 +10,7 @@ from app.models import (
     CycleEntry,
     DoctorProfile,
     DoctorReview,
+    EmailVerificationCode,
     ForumComment,
     ForumPost,
     Message,
@@ -179,6 +180,7 @@ async def _find_or_upgrade_user_email(
 async def database_summary(session_factory: async_sessionmaker) -> dict[str, int]:
     models = {
         "users": User,
+        "email_verification_codes": EmailVerificationCode,
         "doctor_profiles": DoctorProfile,
         "appointments": Appointment,
         "chats": Chat,
@@ -233,6 +235,7 @@ async def _ensure_enum_values(connection, enum_name: str, values: list[str]) -> 
 async def _ensure_legacy_columns(connection) -> None:
     statements = [
         "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS phone VARCHAR(32)",
+        "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE NOT NULL",
         "ALTER TABLE IF EXISTS doctor_profiles ADD COLUMN IF NOT EXISTS university VARCHAR(200) DEFAULT '' NOT NULL",
         "ALTER TABLE IF EXISTS doctor_profiles ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '' NOT NULL",
         "ALTER TABLE IF EXISTS doctor_profiles ADD COLUMN IF NOT EXISTS gender VARCHAR(32) DEFAULT 'female' NOT NULL",

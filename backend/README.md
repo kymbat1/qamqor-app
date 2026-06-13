@@ -41,6 +41,7 @@ POSTGRES_DB=qamqor
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_postgres_password
 JWT_SECRET_KEY=change_me_to_a_long_random_secret
+EMAIL_DELIVERY_MODE=debug
 ```
 
 5. Initialize tables, roles and seed data:
@@ -76,7 +77,9 @@ After `python scripts/init_db.py`:
 
 ## Main Endpoints
 
-- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/register/start`
+- `POST /api/v1/auth/register/resend`
+- `POST /api/v1/auth/register/verify`
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/doctors`
@@ -89,3 +92,32 @@ After `python scripts/init_db.py`:
 - `POST /api/v1/cycle`
 - `GET /api/v1/chats/{chat_id}/messages`
 - `POST /api/v1/chats/{chat_id}/messages`
+
+## Email Verification
+
+Local testing uses:
+
+```env
+EMAIL_DELIVERY_MODE=debug
+```
+
+In debug mode the code is printed in the backend terminal and returned to the
+Flutter app as `debug_code`.
+
+For real email delivery, set:
+
+```env
+EMAIL_DELIVERY_MODE=smtp
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM_EMAIL=noreply@qamqor.kz
+SMTP_USE_TLS=true
+```
+
+Registration flow:
+
+1. `POST /api/v1/auth/register/start` sends a one-time code.
+2. `POST /api/v1/auth/register/verify` creates the user and returns JWT.
+3. `POST /api/v1/auth/register/resend` sends a fresh code after the cooldown.

@@ -1,6 +1,6 @@
 import secrets
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
@@ -11,12 +11,81 @@ from app.schemas import (
     LoginRequest,
     PasswordlessLoginRequest,
     RegisterRequest,
+    RegisterResendRequest,
+    RegisterStartRequest,
+    RegisterStartResponse,
+    RegisterVerifyRequest,
     TokenResponse,
     UserPublic,
+)
+from app.services.email_verification import (
+    resend_email_registration_code,
+    start_email_registration,
+    verify_email_registration,
 )
 
 
 router = APIRouter()
+
+
+@router.post("/register/start", response_model=RegisterStartResponse, status_code=202)
+async def start_register(
+    payload: RegisterStartRequest,
+    request: Request,
+    db: DbSession,
+) -> RegisterStartResponse:
+    record, debug_code = await start_email_registration(
+        db=db,
+        request=request,
+        name=payload.name,
+        email=str(payload.email),
+        password=payload.password,
+        role=payload.role,
+        website=payload.website,
+    )
+    return RegisterStartResponse(
+        email=record.email,
+        expires_at=record.expires_at,
+        resend_available_at=record.resend_available_at,
+        message="verification code sent",
+        debug_code=debug_code,
+    )
+
+
+@router.post("/register/resend", response_model=RegisterStartResponse)
+async def resend_register_code(
+    payload: RegisterResendRequest,
+    request: Request,
+    db: DbSession,
+) -> RegisterStartResponse:
+    record, debug_code = await resend_email_registration_code(
+        db=db,
+        request=request,
+        email=str(payload.email),
+        website=payload.website,
+    )
+    return RegisterStartResponse(
+        email=record.email,
+        expires_at=record.expires_at,
+        resend_available_at=record.resend_available_at,
+        message="verification code sent",
+        debug_code=debug_code,
+    )
+
+
+@router.post("/register/verify", response_model=TokenResponse, status_code=201)
+async def verify_register(
+    payload: RegisterVerifyRequest,
+    db: DbSession,
+) -> TokenResponse:
+    user = await verify_email_registration(
+        db=db,
+        email=str(payload.email),
+        code=payload.code,
+    )
+    return TokenResponse(
+        access_token=create_access_token(user.id, {"role": user.role.value}),
+    )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)

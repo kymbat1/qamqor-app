@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     admin_password: str = "admin12345"
     admin_name: str = "Qamqor Admin"
     doctor_password: str = "doctor12345"
+    email_delivery_mode: str = "debug"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str = "noreply@qamqor.kz"
+    smtp_use_tls: bool = True
+    verification_code_ttl_minutes: int = 10
+    verification_code_resend_seconds: int = 60
+    verification_code_max_attempts: int = 5
+    verification_code_max_sends: int = 5
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

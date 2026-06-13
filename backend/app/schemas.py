@@ -19,6 +19,7 @@ class UserPublic(BaseModel):
     phone: str | None = None
     role: UserRole
     is_active: bool
+    email_verified: bool
     created_at: datetime
 
 
@@ -54,6 +55,53 @@ class RegisterRequest(BaseModel):
         if len(clean) < 10:
             raise ValueError("invalid phone")
         return clean
+
+
+class RegisterStartRequest(RegisterRequest):
+    email: EmailStr
+    phone: None = None
+    website: str | None = Field(default=None, max_length=120)
+    captcha_token: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("website")
+    @classmethod
+    def trim_honeypot(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class RegisterStartResponse(BaseModel):
+    email: EmailStr
+    expires_at: datetime
+    resend_available_at: datetime
+    message: str
+    debug_code: str | None = None
+
+
+class RegisterVerifyRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=12)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        clean = "".join(ch for ch in value.strip() if ch.isdigit())
+        if len(clean) != 6:
+            raise ValueError("code must contain 6 digits")
+        return clean
+
+
+class RegisterResendRequest(BaseModel):
+    email: EmailStr
+    website: str | None = Field(default=None, max_length=120)
+
+    @field_validator("website")
+    @classmethod
+    def trim_resend_honeypot(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class LoginRequest(BaseModel):

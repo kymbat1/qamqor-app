@@ -14,7 +14,8 @@ class ApiClient {
   final http.Client _httpClient;
 
   String get baseUrl {
-    final configured = dotenv.env['BACKEND_API_URL']?.trim();
+    final configured = (dotenv.env['BACKEND_API_URL'] ?? dotenv.env['API_BASE_URL'])
+        ?.trim();
     if (configured != null && configured.isNotEmpty) {
       return _normalizeBaseUrl(configured);
     }

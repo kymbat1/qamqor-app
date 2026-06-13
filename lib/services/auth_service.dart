@@ -131,6 +131,75 @@ class AuthService {
     }
   }
 
+  Future<EmailRegistrationStartResult> startEmailRegistration({
+    required String name,
+    required String email,
+    required String password,
+    String role = 'client',
+    String website = '',
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/register/start',
+        auth: false,
+        body: {
+          'name': name.trim(),
+          'email': AuthValidators.normalizeEmail(email),
+          'password': password.trim(),
+          'role': _normalizeBackendRole(role),
+          'website': website,
+        },
+      );
+      return EmailRegistrationStartResult.fromJson(response);
+    } on ApiException catch (e) {
+      throw Exception(_registrationCodeForApiError(e));
+    } catch (_) {
+      throw Exception('backend-unavailable');
+    }
+  }
+
+  Future<EmailRegistrationStartResult> resendEmailRegistrationCode({
+    required String email,
+    String website = '',
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/register/resend',
+        auth: false,
+        body: {
+          'email': AuthValidators.normalizeEmail(email),
+          'website': website,
+        },
+      );
+      return EmailRegistrationStartResult.fromJson(response);
+    } on ApiException catch (e) {
+      throw Exception(_registrationCodeForApiError(e));
+    } catch (_) {
+      throw Exception('backend-unavailable');
+    }
+  }
+
+  Future<void> verifyEmailRegistration({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final tokenResponse = await _apiClient.post(
+        '/auth/register/verify',
+        auth: false,
+        body: {
+          'email': AuthValidators.normalizeEmail(email),
+          'code': code.trim(),
+        },
+      );
+      await _saveBackendSession(tokenResponse);
+    } on ApiException catch (e) {
+      throw Exception(_registrationCodeForApiError(e));
+    } catch (_) {
+      throw Exception('backend-unavailable');
+    }
+  }
+
   Future<void> signIn(String email, String password) async {
     try {
       final tokenResponse = await _apiClient.post(
@@ -313,6 +382,36 @@ class AuthService {
     return error.message;
   }
 
+  String _registrationCodeForApiError(ApiException error) {
+    final message = error.message.toLowerCase();
+    if (error.statusCode == 400 && message.contains('invalid verification')) {
+      return 'verification-code-invalid';
+    }
+    if (error.statusCode == 400 && message.contains('registration rejected')) {
+      return 'registration-rejected';
+    }
+    if (error.statusCode == 404) return 'verification-code-not-found';
+    if (error.statusCode == 410 || message.contains('expired')) {
+      return 'verification-code-expired';
+    }
+    if (error.statusCode == 409 || message.contains('already')) {
+      return 'email-already-in-use';
+    }
+    if (error.statusCode == 429 && message.contains('resend')) {
+      return 'otp-resend-too-soon';
+    }
+    if (error.statusCode == 429 && message.contains('wrong')) {
+      return 'otp-too-many-attempts';
+    }
+    if (error.statusCode == 429) return 'otp-too-many-requests';
+    if (message.contains('email')) return 'invalid-email';
+    if (message.contains('password')) return 'weak-password';
+    if (message.contains('smtp') || message.contains('send')) {
+      return 'email-send-failed';
+    }
+    return _authCodeForApiError(error);
+  }
+
   String _otpStorageKey(OtpChannel channel, String recipient) {
     final id = sha256.convert(utf8.encode('${channel.value}:$recipient'));
     return '$_otpPrefix$id';
@@ -361,5 +460,32 @@ class AuthService {
     return sha256
         .convert(utf8.encode('$recipient:$code:$salt'))
         .toString();
+  }
+}
+
+class EmailRegistrationStartResult {
+  final String email;
+  final DateTime expiresAt;
+  final DateTime resendAvailableAt;
+  final String message;
+  final String? debugCode;
+
+  const EmailRegistrationStartResult({
+    required this.email,
+    required this.expiresAt,
+    required this.resendAvailableAt,
+    required this.message,
+    this.debugCode,
+  });
+
+  factory EmailRegistrationStartResult.fromJson(Map<String, dynamic> json) {
+    return EmailRegistrationStartResult(
+      email: json['email']?.toString() ?? '',
+      expiresAt: DateTime.parse(json['expires_at'].toString()).toLocal(),
+      resendAvailableAt:
+          DateTime.parse(json['resend_available_at'].toString()).toLocal(),
+      message: json['message']?.toString() ?? '',
+      debugCode: json['debug_code']?.toString(),
+    );
   }
 }
