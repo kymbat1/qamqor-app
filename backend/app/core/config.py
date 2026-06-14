@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     verification_code_resend_seconds: int = 60
     verification_code_max_attempts: int = 5
     verification_code_max_sends: int = 5
+    ai_provider: str = "local"
+    ai_local_base_url: str = "http://127.0.0.1:11434"
+    ai_local_model: str = "llama3.2:3b"
+    ai_local_format: str = "ollama"
+    ai_timeout_seconds: int = 45
+    ai_allow_fallback: bool = True
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

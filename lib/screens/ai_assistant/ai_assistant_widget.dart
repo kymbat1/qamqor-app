@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../services/ai_assistant_service.dart';
-import '../../services/cycle_context_service.dart';
 import '../../theme/app_design.dart';
 
 class ChatMessage {
@@ -29,7 +28,6 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final AiAssistantService _assistantService = AiAssistantService();
-  final CycleContextService _cycleContextService = CycleContextService();
 
   static const double _widgetHeight = 420;
 
@@ -38,7 +36,7 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
   final List<ChatMessage> _messages = [
     ChatMessage(
       text:
-          'Здравствуйте. Я ассистент Qamqor. Я могу учитывать отметки из календаря цикла: текущие месячные, фазу, симптомы и заметки. Напишите, что вас беспокоит.',
+          'Здравствуйте. Я ассистент Qamqor. Я учитываю ваши отметки цикла из календаря, симптомы и фазу цикла. Спросите, например: “сегодня лучше кардио или силовая?”',
       isUser: false,
       timestamp: DateTime.now(),
     ),
@@ -67,14 +65,8 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
     _scrollToBottom();
 
     try {
-      final cycleContext = await _cycleContextService.buildPromptContext();
-      final response = await _assistantService.ask(
-        question: value,
-        cycleContext: cycleContext,
-      );
-      if (!mounted) {
-        return;
-      }
+      final response = await _assistantService.ask(question: value);
+      if (!mounted) return;
       setState(() {
         _messages.add(
           ChatMessage(
@@ -85,9 +77,7 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
         );
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _messages.add(
           ChatMessage(
@@ -108,29 +98,17 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
 
   String _friendlyError(Object error) {
     final text = error.toString();
-    if (text.contains('user-not-authenticated')) {
+    if (text.contains('user-not-authenticated') ||
+        text.contains('missing bearer') ||
+        text.contains('после входа')) {
       return 'Я смогу учитывать календарь после входа в аккаунт. Войдите и повторите вопрос.';
     }
-    if (text.contains('permission-denied')) {
-      return 'Backend не разрешил прочитать календарь цикла. Проверьте вход в аккаунт.';
-    }
-    if (text.contains('OPENAI') ||
-        text.contains('OpenAI') ||
-        text.contains('XAI') ||
-        text.contains('Grok') ||
-        text.contains('Код ошибки') ||
-        text.contains('FastAPI') ||
-        text.contains('backend')) {
-      return text;
-    }
-    return 'Не получилось получить ответ ИИ. Проверьте интернет, .env и попробуйте еще раз.';
+    return text.replaceFirst('Exception: ', '');
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) {
-        return;
-      }
+      if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 260),
@@ -270,9 +248,9 @@ class _AiAssistantWidgetState extends State<AiAssistantWidget> {
           color: AppColors.lavender,
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Row(
+        child: const Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             SizedBox(
               width: 16,
               height: 16,

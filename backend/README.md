@@ -92,6 +92,7 @@ After `python scripts/init_db.py`:
 - `POST /api/v1/cycle`
 - `GET /api/v1/chats/{chat_id}/messages`
 - `POST /api/v1/chats/{chat_id}/messages`
+- `POST /api/v1/ai/chat`
 
 ## Email Verification
 
@@ -121,3 +122,37 @@ Registration flow:
 1. `POST /api/v1/auth/register/start` sends a one-time code.
 2. `POST /api/v1/auth/register/verify` creates the user and returns JWT.
 3. `POST /api/v1/auth/register/resend` sends a fresh code after the cooldown.
+
+## Local AI Assistant
+
+The Flutter app calls FastAPI at:
+
+```text
+POST /api/v1/ai/chat
+```
+
+The backend reads the user's cycle entries from PostgreSQL, adds safety rules,
+suggests available doctors when needed, and then calls a local LLM if it is
+available. No paid API key is required.
+
+Recommended local setup:
+
+```powershell
+ollama pull llama3.2:3b
+ollama serve
+```
+
+Backend `.env`:
+
+```env
+AI_PROVIDER=local
+AI_LOCAL_BASE_URL=http://127.0.0.1:11434
+AI_LOCAL_MODEL=llama3.2:3b
+AI_LOCAL_FORMAT=ollama
+AI_TIMEOUT_SECONDS=45
+AI_ALLOW_FALLBACK=true
+```
+
+If Ollama is not running, the backend still returns a safe fallback answer for
+cycle/training/symptom questions. Serious symptoms are routed toward doctor
+consultation instead of diagnosis.

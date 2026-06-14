@@ -319,6 +319,33 @@ class MessagePublic(BaseModel):
     created_at: datetime
 
 
+class AiChatRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=1200)
+
+    @field_validator("question")
+    @classmethod
+    def trim_question(cls, value: str) -> str:
+        return value.strip()
+
+
+class AiDoctorSuggestion(BaseModel):
+    id: str
+    name: str
+    specialty: str
+    city: str
+    hospital: str
+    rating: float
+    consultation_fee: float
+
+
+class AiChatResponse(BaseModel):
+    answer: str
+    source: str
+    used_cycle_context: bool
+    needs_doctor: bool
+    doctors: list[AiDoctorSuggestion] = Field(default_factory=list)
+
+
 class ForumPostCreate(BaseModel):
     title: str = Field(min_length=4, max_length=180)
     body: str = Field(min_length=10, max_length=5000)
