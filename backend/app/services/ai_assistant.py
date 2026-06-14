@@ -1,10 +1,9 @@
 import asyncio
 import json
-import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
@@ -45,6 +44,7 @@ DOMAIN_KEYWORDS = {
     "гинек",
     "гормон",
     "боль",
+    "болит",
     "живот",
     "выдел",
     "спорт",
@@ -68,9 +68,11 @@ DOMAIN_KEYWORDS = {
     "запис",
 }
 
+
 RED_FLAG_KEYWORDS = {
     "обморок",
     "потеряла сознание",
+    "потеря сознания",
     "сильное кровотечение",
     "очень обиль",
     "кровь сгуст",
@@ -127,7 +129,7 @@ async def answer_with_cycle_context(
     snapshot: CycleSnapshot,
     doctors: list[DoctorProfile],
 ) -> AiAssistantResult:
-    normalized = question.lower().strip()
+    normalized = question.casefold().strip()
     if not _is_domain_question(normalized):
         return AiAssistantResult(
             answer=(
@@ -149,7 +151,7 @@ async def answer_with_cycle_context(
         )
 
     settings = get_settings()
-    if settings.ai_provider.lower() == "local":
+    if settings.ai_provider.casefold() == "local":
         prompt = _system_prompt(snapshot, doctors)
         try:
             answer = await _ask_local_model(prompt, question)
@@ -191,14 +193,12 @@ def _has_red_flags(question: str, snapshot: CycleSnapshot) -> bool:
 
 
 def _doctor_first_answer(snapshot: CycleSnapshot, doctors: list[DoctorProfile]) -> str:
-    suggestions = _doctor_lines(doctors)
-    context = _cycle_context_text(snapshot)
     return (
         "По описанию есть признаки, с которыми лучше не ограничиваться советами от ИИ. "
         "Пожалуйста, обратитесь к врачу, а при резкой боли, обмороке, температуре, "
-        "очень обильном кровотечении или подозрении на беременность — за срочной помощью.\n\n"
-        f"Что я вижу по календарю: {context}\n\n"
-        f"В приложении можно начать с этих специалистов:\n{suggestions}"
+        "очень обильном кровотечении или подозрении на беременность обратитесь за срочной помощью.\n\n"
+        f"Что я вижу по календарю: {_cycle_context_text(snapshot)}\n\n"
+        f"В приложении можно начать с этих специалистов:\n{_doctor_lines(doctors)}"
     )
 
 
@@ -207,8 +207,8 @@ def _fallback_answer(
     snapshot: CycleSnapshot,
     doctors: list[DoctorProfile],
 ) -> str:
-    lower = question.lower()
-    if any(word in lower for word in ["кардио", "силов", "трен", "спорт"]):
+    lower = question.casefold()
+    if any(word in lower for word in ["кардио", "силов", "трен", "спорт", "зал", "фитнес"]):
         return _exercise_answer(snapshot)
     if any(word in lower for word in ["болит", "боль", "спазм", "живот"]):
         return (
@@ -228,7 +228,7 @@ def _fallback_answer(
 
 
 def _exercise_answer(snapshot: CycleSnapshot) -> str:
-    phase = snapshot.phase.lower()
+    phase = snapshot.phase.casefold()
     pain = snapshot.pain_level or 0
     energy = snapshot.energy_level
     if snapshot.period_now or "менстру" in phase:
@@ -237,41 +237,41 @@ def _exercise_answer(snapshot: CycleSnapshot) -> str:
                 "Сегодня лучше выбрать мягкую нагрузку: прогулку, растяжку, йогу, "
                 "дыхание или легкое кардио 15-25 минут. Силовые и интенсивные интервалы "
                 "лучше отложить, особенно если боль заметная. Если боль необычная или "
-                "очень сильная — лучше обсудить это с врачом."
+                "очень сильная, лучше обсудить это с врачом."
             )
         return (
             "Если самочувствие нормальное, можно легкое кардио или облегченные силовые "
-            "без рекордов. Ориентируйся на ощущения: при усилении боли снизь интенсивность."
+            "без рекордов. Ориентируйтесь на ощущения: при усилении боли снизьте интенсивность."
         )
     if "фоллик" in phase:
         return (
             "В фолликулярной фазе часто легче переносится активность. Если энергия нормальная, "
-            "можно силовую тренировку или умеренное кардио. Начни с разминки и не игнорируй "
-            "боль/головокружение."
+            "можно выбрать силовую тренировку или умеренное кардио. Начните с разминки и не "
+            "игнорируйте боль или головокружение."
         )
     if "овуля" in phase:
         return (
             "В овуляторной фазе можно кардио или силовые, но аккуратно с максимальными весами, "
-            "если есть тянущие ощущения внизу живота. Хороший вариант — умеренная силовая "
+            "если есть тянущие ощущения внизу живота. Хороший вариант - умеренная силовая "
             "и контроль техники."
         )
     if "лютеин" in phase:
         return (
-            "В лютеиновой фазе часто падает энергия и выше чувствительность к стрессу. "
-            f"Если энергия {energy or 'не отмечена'}, выбирай умеренное кардио, пилатес "
+            f"В лютеиновой фазе часто падает энергия и выше чувствительность к стрессу. "
+            f"Если энергия {energy or 'не отмечена'}, выбирайте умеренное кардио, пилатес "
             "или силовую с меньшим объемом. При ПМС лучше снизить интенсивность."
         )
     return (
-        "Я не вижу точной фазы цикла, поэтому выбери нагрузку по самочувствию: если есть боль "
-        "или усталость — легкое кардио/растяжка; если энергии достаточно — умеренные силовые. "
-        "Добавь отметки в календарь, и советы станут точнее."
+        "Я не вижу точной фазы цикла, поэтому выберите нагрузку по самочувствию: если есть боль "
+        "или усталость - легкое кардио/растяжка; если энергии достаточно - умеренные силовые. "
+        "Добавьте отметки в календарь, и советы станут точнее."
     )
 
 
 async def _ask_local_model(system_prompt: str, question: str) -> str:
     settings = get_settings()
     base_url = settings.ai_local_base_url.rstrip("/")
-    if settings.ai_local_format.lower() == "openai":
+    if settings.ai_local_format.casefold() == "openai":
         url = f"{base_url}/v1/chat/completions"
         payload = {
             "model": settings.ai_local_model,
@@ -388,9 +388,13 @@ def _doctor_hint(doctors: list[DoctorProfile]) -> str:
 
 
 def _with_safety_footer(answer: str) -> str:
-    if "врач" in answer.lower() or "специалист" in answer.lower():
+    lower = answer.casefold()
+    if "врач" in lower or "специалист" in lower:
         return answer
-    return answer + "\n\nЕсли симптом сильный, необычный или повторяется, лучше обратиться к врачу."
+    return (
+        answer
+        + "\n\nЕсли симптом сильный, необычный или повторяется, лучше обратиться к врачу."
+    )
 
 
 def _load_details(entry: CycleEntry | None) -> dict:

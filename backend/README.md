@@ -132,10 +132,19 @@ POST /api/v1/ai/chat
 ```
 
 The backend reads the user's cycle entries from PostgreSQL, adds safety rules,
-suggests available doctors when needed, and then calls a local LLM if it is
-available. No paid API key is required.
+and suggests available doctors when needed. It works without paid API keys and
+without downloading a local model.
 
-Recommended local setup:
+Default mode:
+
+```env
+AI_PROVIDER=rules
+```
+
+This rule-based mode is best for demo/submission because it does not require
+Ollama, disk space, internet, or paid keys.
+
+Optional local LLM setup for more flexible answers:
 
 ```powershell
 ollama pull llama3.2:3b
@@ -153,6 +162,5 @@ AI_TIMEOUT_SECONDS=45
 AI_ALLOW_FALLBACK=true
 ```
 
-If Ollama is not running, the backend still returns a safe fallback answer for
-cycle/training/symptom questions. Serious symptoms are routed toward doctor
-consultation instead of diagnosis.
+In both modes, serious symptoms are routed toward doctor consultation instead
+of diagnosis.
