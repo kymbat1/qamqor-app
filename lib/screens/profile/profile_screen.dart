@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_design.dart';
 import '../auth/login_screen.dart';
+import '../doctors/chat_list_screen.dart';
 import 'access_code_screen.dart';
 import 'chart_report_screen.dart';
 import 'edit_profile_screen.dart';
@@ -174,6 +175,9 @@ class ProfileScreen extends StatelessWidget {
       }),
       _ProfileItem(Icons.event_available_outlined, 'Мои записи', () {
         return MyAppointmentsScreen(authService: authService);
+      }),
+      _ProfileItem(Icons.forum_outlined, 'Чаты с врачами', () {
+        return ChatListScreen(authService: authService, isDoctor: false);
       }),
       _ProfileItem(Icons.leaderboard_outlined, 'Графики и отчеты', () {
         return const ChartReportScreen();

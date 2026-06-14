@@ -6,6 +6,7 @@ import '../../services/appointment_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_design.dart';
 import '../auth/login_screen.dart';
+import 'chat_list_screen.dart';
 import 'doctor_chat_screen.dart';
 import 'doctor_profile_editor_screen.dart';
 
@@ -187,6 +188,22 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
             ],
           ),
         ),
+        IconButton.filledTonal(
+          tooltip: 'Чаты',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatListScreen(
+                  authService: widget.authService,
+                  isDoctor: true,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.forum_outlined),
+        ),
+        const SizedBox(width: 8),
         IconButton.filledTonal(
           tooltip: 'Профиль',
           onPressed: () {

@@ -279,7 +279,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         builder: (_) => DoctorChatScreen(
           chatId: appointment.chatId,
           title: appointment.doctorName,
-          senderRole: 'patient',
+          senderRole: 'client',
           authService: widget.authService,
         ),
       ),

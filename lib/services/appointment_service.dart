@@ -9,7 +9,7 @@ class AppointmentService {
   AppointmentService({AuthService? authService})
       : _apiClient = ApiClient();
 
-  Future<String> createAppointment({
+  Future<Appointment> createAppointment({
     required Doctor doctor,
     required DateTime dateTime,
   }) async {
@@ -18,7 +18,7 @@ class AppointmentService {
       'starts_at': dateTime.toUtc().toIso8601String(),
       'reason': '',
     });
-    return response['id']?.toString() ?? '';
+    return Appointment.fromJson(response, response['id']?.toString() ?? '');
   }
 
   Stream<List<Appointment>> watchDoctorAppointments(String doctorId) {

@@ -230,6 +230,8 @@ class Chat(Base):
     )
 
     appointment: Mapped[Appointment | None] = relationship(back_populates="chat")
+    client: Mapped[User] = relationship(foreign_keys=[client_id])
+    doctor: Mapped[DoctorProfile] = relationship(foreign_keys=[doctor_id])
     messages: Mapped[list["Message"]] = relationship(
         back_populates="chat",
         cascade="all, delete-orphan",

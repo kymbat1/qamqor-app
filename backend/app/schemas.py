@@ -298,7 +298,13 @@ class ChatPublic(BaseModel):
     id: str
     appointment_id: str | None = None
     client_id: str
+    client_name: str | None = None
+    client_contact: str | None = None
     doctor_id: str
+    doctor_name: str | None = None
+    doctor_specialty: str | None = None
+    appointment_starts_at: datetime | None = None
+    appointment_status: AppointmentStatus | None = None
     last_message: str
     created_at: datetime
     updated_at: datetime

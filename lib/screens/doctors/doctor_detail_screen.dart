@@ -153,7 +153,9 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
         const Spacer(),
         IconButton.filledTonal(
           tooltip: 'Чат',
-          onPressed: _openPatientChat,
+          onPressed: () {
+            _showMessage('Сначала выберите время и создайте запись');
+          },
           icon: const Icon(Icons.chat_bubble_outline_rounded),
         ),
         const SizedBox(width: 8),
@@ -603,7 +605,7 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
     );
   }
 
-  Future<void> _openPatientChat() async {
+  Future<void> _openPatientChat(String chatId) async {
     final patientId = await _authService.currentUser();
     if (patientId == null || patientId.isEmpty) {
       _showMessage('Сначала войдите в аккаунт');
@@ -615,9 +617,9 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => DoctorChatScreen(
-          chatId: '${_doctorId}_$patientId',
+          chatId: chatId,
           title: widget.doctor.name,
-          senderRole: 'patient',
+          senderRole: 'client',
           authService: _authService,
         ),
       ),
@@ -638,14 +640,14 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
 
     setState(() => _isBooking = true);
     try {
-      await _appointmentService.createAppointment(
+      final appointment = await _appointmentService.createAppointment(
         doctor: widget.doctor,
         dateTime: dateTime,
       );
       if (!mounted) return;
       final formattedDate = DateFormat('d MMMM', 'ru_RU').format(dateTime);
       _showMessage('Запись создана на $formattedDate в $_selectedTime');
-      await _openPatientChat();
+      await _openPatientChat(appointment.chatId);
     } catch (_) {
       if (!mounted) return;
       _showMessage('Не удалось создать запись. Проверьте вход и backend.');

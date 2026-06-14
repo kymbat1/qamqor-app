@@ -30,6 +30,30 @@ def serialize_appointment(appointment: Appointment) -> dict:
     }
 
 
+async def ensure_appointment_chat(appointment: Appointment, db: DbSession) -> None:
+    if appointment.chat_id:
+        existing = await db.get(Chat, appointment.chat_id)
+        if existing is not None:
+            return
+
+    result = await db.execute(
+        select(Chat).where(Chat.appointment_id == appointment.id),
+    )
+    existing_for_appointment = result.scalar_one_or_none()
+    if existing_for_appointment is not None:
+        appointment.chat_id = existing_for_appointment.id
+        return
+
+    chat = Chat(
+        appointment_id=appointment.id,
+        client_id=appointment.client_id,
+        doctor_id=appointment.doctor_id,
+    )
+    db.add(chat)
+    await db.flush()
+    appointment.chat_id = chat.id
+
+
 @router.post("", response_model=AppointmentPublic, status_code=201)
 async def create_appointment(
     payload: AppointmentCreate,
@@ -93,7 +117,16 @@ async def list_appointments(db: DbSession, user: CurrentUser) -> list[dict]:
         raise HTTPException(status_code=403, detail="not enough permissions")
 
     result = await db.execute(query)
-    return [serialize_appointment(item) for item in result.scalars().all()]
+    appointments = list(result.scalars().all())
+    changed = False
+    for appointment in appointments:
+        current_chat_id = appointment.chat_id
+        await ensure_appointment_chat(appointment, db)
+        if appointment.chat_id != current_chat_id:
+            changed = True
+    if changed:
+        await db.commit()
+    return [serialize_appointment(item) for item in appointments]
 
 
 @router.patch("/{appointment_id}/status", response_model=AppointmentPublic)
@@ -122,6 +155,7 @@ async def update_status(
     if is_client_owner and payload.status != AppointmentStatus.cancelled:
         raise HTTPException(status_code=403, detail="client can only cancel")
 
+    await ensure_appointment_chat(appointment, db)
     appointment.status = payload.status
     await db.commit()
     result = await db.execute(
