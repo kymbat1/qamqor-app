@@ -109,38 +109,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class PasswordlessLoginRequest(BaseModel):
-    email: EmailStr | None = None
-    phone: str | None = Field(default=None, max_length=32)
-    role: UserRole = UserRole.client
-
-    @field_validator("role")
-    @classmethod
-    def block_admin_passwordless_login(cls, value: UserRole) -> UserRole:
-        if value == UserRole.admin:
-            raise ValueError("admin cannot use passwordless login")
-        return value
-
-    @field_validator("email", "phone")
-    @classmethod
-    def trim_passwordless_optional(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        value = value.strip()
-        return value or None
-
-    @field_validator("phone")
-    @classmethod
-    def normalize_passwordless_phone(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        allowed = "+0123456789"
-        clean = "".join(ch for ch in value if ch in allowed)
-        if len(clean) < 10:
-            raise ValueError("invalid phone")
-        return clean
-
-
 class UserUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=160)
     phone: str | None = Field(default=None, max_length=32)

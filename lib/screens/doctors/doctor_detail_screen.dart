@@ -363,11 +363,13 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
               ],
             ),
           ),
-          IconButton(
+          const SizedBox.shrink(),
+          /*
             tooltip: 'Показать на карте',
-            onPressed: _showClinicMap,
-            icon: const Icon(Icons.map_outlined, color: AppColors.plum),
+            onPressed: null,
+            icon: Icon(Icons.map_outlined, color: AppColors.plum),
           ),
+          */
         ],
       ),
     );
@@ -682,6 +684,7 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
     }
   }
 
+  // ignore: unused_element
   void _showClinicMap() {
     showModalBottomSheet(
       context: context,

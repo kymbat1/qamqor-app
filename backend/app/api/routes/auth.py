@@ -9,7 +9,6 @@ from app.deps import CurrentUser, DbSession
 from app.models import DoctorProfile, User, UserRole
 from app.schemas import (
     LoginRequest,
-    PasswordlessLoginRequest,
     RegisterRequest,
     RegisterResendRequest,
     RegisterStartRequest,
@@ -157,11 +156,17 @@ async def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
     )
 
 
-@router.post("/passwordless-login", response_model=TokenResponse)
+@router.post(
+    "/passwordless-login",
+    response_model=TokenResponse,
+    include_in_schema=False,
+)
 async def passwordless_login(
-    payload: PasswordlessLoginRequest,
+    payload: dict,
     db: DbSession,
 ) -> TokenResponse:
+    raise HTTPException(status_code=410, detail="passwordless login disabled")
+
     if payload.email is None and payload.phone is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -211,7 +211,6 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
                           const SizedBox(height: 14),
                           FadeSlideIn(delayMs: 160, child: _activeFilters()),
                           const SizedBox(height: 14),
-                          FadeSlideIn(delayMs: 190, child: _mapCard(doctors)),
                         ],
                       ),
                     ),
@@ -477,6 +476,7 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _mapCard(List<Doctor> doctors) {
     final visibleDoctors = _mapDoctors(doctors).take(8).toList();
     if (visibleDoctors.isEmpty) return const SizedBox.shrink();
